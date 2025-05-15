@@ -9,3 +9,10 @@ Final project for MSAI495: Computer Vision
 - https://nu-msr.github.io/ros_notes/ros2/computer_vision.html
 - https://www.mathworks.com/help/nav/ug/reduce-drift-visual-odom-pose-graph.html
 - https://youtube.com/playlist?list=PLoAomNxPy04feqEsgs2oTGrEFztkSoLjH&si=HzNw6oAGWwe0BXag
+- https://turtlebot.github.io/turtlebot4-user-manual/software/turtlebot4_setup.html
+
+## Hardware:
+- TurtleBot3
+  [Static IP: 192.168.2.1 | Name: Teelte]
+- RealSense D435I
+- LiPo Battery
