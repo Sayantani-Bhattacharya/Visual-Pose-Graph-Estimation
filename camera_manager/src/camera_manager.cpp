@@ -1,10 +1,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include "camera_manager.hpp"
 
-
-// Pub: Node, Edges
-// Sub: RS images.
-
 CameraManager::CameraManager() : Node("camera_manager") {
   RCLCPP_INFO(this->get_logger(), "Camera Manager Node Initialized");
 
@@ -12,8 +8,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
 }
 
-void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
-{
+void image_callback(const sensor_msgs::msg::Image::SharedPtr msg) {
   // RCLCPP_INFO(this->get_logger(), "Received image with width: %d, height: %d", msg->width, msg->height);
   // /convert msg to cv frame.
 }
