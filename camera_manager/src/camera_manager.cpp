@@ -20,9 +20,9 @@ void CameraManager::FeatureExtractor() {
   cv::SIFT sift;
   std::vector<cv::KeyPoint> keypoints;
   cv::Mat descriptors;
-  sift.detect(mFrame, keypoints);
-  sift.compute(mFrame, keypoints, descriptors);
-  mFeatureMap[mFrameId] = std::make_pair(keypoints, descriptors);
+  sift.detect(this->cvImage.image, keypoints);
+  sift.compute(this->cvImage.image, keypoints, descriptors);
+  this->featureMap[this->cvImage.frameID] = std::make_pair(keypoints, descriptors);
 }
 
 int main(int argc, char* argv[]) {

@@ -8,6 +8,7 @@
 using Image = sensor_msgs::msg::Image;
 
 struct OpenCVImage {
+  int frameID;
   cv::Mat image;
   std::string encoding;
 };
@@ -31,6 +32,9 @@ private: // ROS Components
 private: // Member Variables
   // OpenCV Image instance of camera image
   OpenCVImage cvImage;
+
+  // Feature Map
+  std::map<int, std::pair<std::vector<cv::KeyPoint>, cv::Mat>> featureMap;
 
 };
 #endif // !CAMERA_MANAGER_HPP
