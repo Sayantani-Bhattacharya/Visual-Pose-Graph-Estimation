@@ -11,14 +11,18 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(OpenCV REQUIRED)
 
 include_directories(
   include/camera_manager
 )
 
 # Camera Manager Node
-add_executable(CameraManager src/camera_manager.cpp)
-ament_target_dependencies(CameraManager rclcpp)
+add_executable(CameraManager src/camera_manager.cpp )
+ament_target_dependencies(CameraManager rclcpp sensor_msgs cv_bridge OpenCV)
+
 
 install(TARGETS
   CameraManager
