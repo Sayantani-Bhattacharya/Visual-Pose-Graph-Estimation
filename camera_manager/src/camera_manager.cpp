@@ -15,6 +15,16 @@ CameraManager::CameraManager() : Node("camera_manager") {
   );
 }
 
+void CameraManager::FeatureExtractor() {
+  // Implement feature extraction logic using SIFT and ORB.
+  cv::SIFT sift;
+  std::vector<cv::KeyPoint> keypoints;
+  cv::Mat descriptors;
+  sift.detect(mFrame, keypoints);
+  sift.compute(mFrame, keypoints, descriptors);
+  mFeatureMap[mFrameId] = std::make_pair(keypoints, descriptors);
+}
+
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<CameraManager>());
