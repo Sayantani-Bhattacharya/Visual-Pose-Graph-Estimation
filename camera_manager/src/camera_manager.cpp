@@ -1,19 +1,20 @@
-#include <rclcpp/rclcpp.hpp>
 #include "camera_manager.hpp"
 
 CameraManager::CameraManager() : Node("camera_manager") {
   RCLCPP_INFO(this->get_logger(), "Camera Manager Node Initialized");
 
-  camera_sub = this->create_subscription<sensor_msgs::msg::Image>("camera/image", 10, std::bind(&CameraManager::image_callback, this, std::placeholders::_1));
+  // Create subscriber to camera image and convert to OpenCV Image
+  this->cameraSub = this->create_subscription<Image>(
+    "camera/image", 10,
+    [this](const Image::SharedPtr msg) {
+    // Convert ROS Image to OpenCV Image
+    cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    this->cvImage.image = image;
+    this->cvImage.encoding = msg->encoding;
+  }
+  );
 
 }
-
-void image_callback(const sensor_msgs::msg::Image::SharedPtr msg) {
-  // RCLCPP_INFO(this->get_logger(), "Received image with width: %d, height: %d", msg->width, msg->height);
-  // /convert msg to cv frame.
-}
-
-
 
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
