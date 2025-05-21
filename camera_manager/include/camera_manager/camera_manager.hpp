@@ -29,7 +29,7 @@ private: // ROS Components
   rclcpp::Subscription<Image>::SharedPtr cameraSub;
 
 private: // Member Variables
-  // OpenCV Image
+  // OpenCV Image instance of camera image
   OpenCVImage cvImage;
 
 };

@@ -5,7 +5,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
   // Create subscriber to camera image and convert to OpenCV Image
   this->cameraSub = this->create_subscription<Image>(
-    "camera/image", 10,
+    "camera/camera/color/image_raw", 10,
     [this](const Image::SharedPtr msg) {
     // Convert ROS Image to OpenCV Image
     cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
@@ -13,7 +13,6 @@ CameraManager::CameraManager() : Node("camera_manager") {
     this->cvImage.encoding = msg->encoding;
   }
   );
-
 }
 
 int main(int argc, char* argv[]) {
