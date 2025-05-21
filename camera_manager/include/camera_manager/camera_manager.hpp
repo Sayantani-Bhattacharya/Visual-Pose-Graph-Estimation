@@ -29,7 +29,12 @@ private: // ROS Components
   // Subscriber to camera image
   rclcpp::Subscription<Image>::SharedPtr cameraSub;
 
+  void timerCallback();
+
 private: // Member Variables
+  // Timer Frequency
+  float timerFreq; // [Hz]
+
   // OpenCV Image instance of camera image
   OpenCVImage cvImage;
 
