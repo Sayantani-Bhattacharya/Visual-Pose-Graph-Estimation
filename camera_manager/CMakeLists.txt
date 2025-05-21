@@ -20,12 +20,12 @@ include_directories(
 )
 
 # Camera Manager Node
-add_executable(CameraManager src/camera_manager.cpp )
-ament_target_dependencies(CameraManager rclcpp sensor_msgs cv_bridge OpenCV)
+add_executable(camera_manager src/camera_manager.cpp )
+ament_target_dependencies(camera_manager rclcpp sensor_msgs cv_bridge OpenCV)
 
 
 install(TARGETS
-  CameraManager
+  camera_manager
   DESTINATION lib/${PROJECT_NAME}
 )
 

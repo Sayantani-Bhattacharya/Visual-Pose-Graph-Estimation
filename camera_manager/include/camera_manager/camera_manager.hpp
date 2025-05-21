@@ -13,15 +13,22 @@ public:
   void GraphBuilder();
   // void CameraPoseGraphOptimization();
   // void LoopClosureDetector();
+  void image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
+
 
 
 private:
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub;
+
+  // Global variables
   
-  // cv::frame mFrame;
+  // Real-time updated CV frame.
+  cv::Mat mFrame;
+  int mFrameId = 0;
+  
+  std::map<int, std::pair<std::vector<cv::KeyPoint>, cv::Mat>> mFeatureMap;
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr camera_sub;
 
 
-  void image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
 
 };
 #endif // !CAMERA_MANAGER_HPP

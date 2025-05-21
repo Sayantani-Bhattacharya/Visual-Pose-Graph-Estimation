@@ -1,23 +1,35 @@
 #include <rclcpp/rclcpp.hpp>
 #include "camera_manager.hpp"
-
+#include <cv_bridge/cv_bridge.hpp>
+#include <opencv2/opencv.hpp>
 
 // Pub: Node, Edges
 // Sub: RS images.
 
 CameraManager::CameraManager() : Node("camera_manager") {
   RCLCPP_INFO(this->get_logger(), "Camera Manager Node Initialized");
-
-  camera_sub = this->create_subscription<sensor_msgs::msg::Image>("camera/image", 10, std::bind(&CameraManager::image_callback, this, std::placeholders::_1));
-
+  camera_sub = this->create_subscription<sensor_msgs::msg::Image>("/camera/camera/color/image_raw", 10, std::bind(&CameraManager::image_callback, this, std::placeholders::_1));
 }
 
-void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+void CameraManager::image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
 {
-  // RCLCPP_INFO(this->get_logger(), "Received image with width: %d, height: %d", msg->width, msg->height);
-  // /convert msg to cv frame.
+  // Convert image to cv frame.
+  cv::Mat frame;
+  cv::Mat img = cv_bridge::toCvCopy(msg, "bgr8")->image;
+  mFrame = img.clone();
+  mFrameId ++;
 }
 
+
+void CameraManager::FeatureExtractor() {
+  // Implement feature extraction logic using SIFT and ORB.
+  cv::SIFT sift;
+  std::vector<cv::KeyPoint> keypoints;
+  cv::Mat descriptors;
+  sift.detect(mFrame, keypoints);
+  sift.compute(mFrame, keypoints, descriptors);
+  mFeatureMap[mFrameId] = std::make_pair(keypoints, descriptors);
+}
 
 
 int main(int argc, char* argv[]) {
