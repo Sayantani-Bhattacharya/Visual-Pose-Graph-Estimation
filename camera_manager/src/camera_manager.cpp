@@ -14,8 +14,13 @@ CameraManager::CameraManager() : Node("camera_manager") {
     [this](const Image::SharedPtr msg) {
     // Convert ROS Image to OpenCV Image
     cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    this->cvImageMutex.lock();
+    this->cvImage.header = msg->header;
+    // Set frame ID to a unique value based on timestamp [sec * 1000000 + nanosec / 1000]
+    this->cvImage.frameID = (msg->header.stamp.sec * 1000000) + (msg->header.stamp.nanosec / 1000);
     this->cvImage.image = image;
     this->cvImage.encoding = msg->encoding;
+    this->cvImageMutex.unlock();
   }
   );
 
@@ -27,23 +32,26 @@ CameraManager::CameraManager() : Node("camera_manager") {
 }
 
 void CameraManager::timerCallback() {
-  // Process camera image
-  if (!this->cvImage.image.empty()) {
-    this->FeatureExtractor();
-    this->CameraPoseEstimation();
-    this->GraphBuilder();
-    this->LoopClosureDetector();
+  this->cvImageMutex.lock();
+  OpenCVImage currentImage = this->cvImage;
+  this->cvImageMutex.unlock();
+  if (!currentImage.image.empty()) {
+    FeatureMap features = this->FeatureExtractor(currentImage);
+    PoseConstraints estimatedPose = this->CameraPoseEstimation(features);
+    PoseConstraints loopConstraints = this->LoopClosureDetector();
+    this->GraphBuilder(estimatedPose, loopConstraints);
+    this->VisualizeGraph();
   }
 }
 
-void CameraManager::FeatureExtractor() {
+FeatureMap CameraManager::FeatureExtractor(const OpenCVImage& frame) {
   // Implement feature extraction logic using SIFT and ORB.
   cv::SIFT sift;
   std::vector<cv::KeyPoint> keypoints;
   cv::Mat descriptors;
-  sift.detect(this->cvImage.image, keypoints);
-  sift.compute(this->cvImage.image, keypoints, descriptors);
-  this->featureMap[this->cvImage.frameID] = std::make_pair(keypoints, descriptors);
+  sift.detect(frame.image, keypoints);
+  sift.compute(frame.image, keypoints, descriptors);
+  this->featureMap[frame.frameID] = std::make_pair(keypoints, descriptors);
 }
 
 int main(int argc, char* argv[]) {
