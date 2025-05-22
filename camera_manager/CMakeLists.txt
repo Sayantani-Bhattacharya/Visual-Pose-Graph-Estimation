@@ -14,6 +14,7 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
 
 include_directories(
   include/camera_manager
@@ -22,7 +23,7 @@ include_directories(
 
 # Camera Manager Node
 add_executable(camera_manager src/camera_manager.cpp)
-ament_target_dependencies(camera_manager rclcpp sensor_msgs OpenCV cv_bridge)
+ament_target_dependencies(camera_manager rclcpp sensor_msgs OpenCV cv_bridge image_transport)
 target_link_libraries(camera_manager ${OpenCV_LIBRARIES})
 
 install(TARGETS
