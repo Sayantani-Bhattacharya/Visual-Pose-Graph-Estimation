@@ -45,6 +45,8 @@ CameraManager::CameraManager() : Node("camera_manager") {
   }
   );
 
+  // TODO: Add support for stereo cameras by subscribing to left and right images.
+
   // Timer for processing camera images
   this->timer = this->create_wall_timer(
     std::chrono::milliseconds(static_cast<int>(1000.0f / this->timerFreq)),
@@ -61,22 +63,26 @@ void CameraManager::timerCallback() {
       this->frameQueue.pop();
     }
   }
-  FeatureMap features = this->FeatureExtractor(currentFrame);
-  Edge odomEdge = this->CameraPoseEstimation(features);
+  Feature features = this->FeatureExtractor(currentFrame);
+  Edge odomEdge = this->MonocularCameraPoseEstimation(features);
   Edge loopConstraints = this->LoopClosureDetector();
   this->GraphBuilder(odomEdge, loopConstraints);
   this->VisualizeGraph();
 }
 
-FeatureMap CameraManager::FeatureExtractor(const Frame& frame) {
+Feature CameraManager::FeatureExtractor(const Frame& frame) {
   // Implement feature extraction logic using SIFT and ORB.
   cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
-  FeatureMap featureMap;
-  featureMap.frameID = frame.frameID;
+  Feature feature;
+  feature.frameID = frame.frameID;
+  featureMap[feature.frameID] = feature; 
+
+  // TODO: Add check for empty image.
+  // TODO: Add left and right image support for stereo cameras.
   extractor->detectAndCompute(
-    frame.image, cv::noArray(), featureMap.keypoints, featureMap.descriptors
+    frame.image, cv::noArray(), feature.keypoints, feature.descriptors
   );
-  return featureMap;
+  return feature;
 }
 
 Edge CameraManager::CameraPoseEstimation(const FeatureMap& featureMap) {

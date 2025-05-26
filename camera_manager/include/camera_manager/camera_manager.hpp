@@ -38,7 +38,7 @@ struct Edge {
   bool isLoopClosure; // Flag for loop closure edge
 };
 
-struct FeatureMap {
+struct Feature {
   int frameID;
   std::vector<cv::KeyPoint> keypoints;
   cv::Mat descriptors; // SIFT/ORB descriptors
@@ -49,8 +49,9 @@ public:
   CameraManager();
   ~CameraManager() = default;
 
-  FeatureMap FeatureExtractor(const Frame& frame);
-  Edge CameraPoseEstimation(const FeatureMap& featureMap);
+  Feature FeatureExtractor(const Frame& frame);
+  Edge MonocularCameraPoseEstimation(const Feature& feature);
+  // Edge StereoCameraPoseEstimation(const Feature& feature);
   Edge LoopClosureDetector();
   void GraphBuilder(const Edge& estimatedPose, const Edge& loopConstraints);
   void VisualizeGraph();
@@ -76,6 +77,9 @@ private:
 
   // Container for frames
   std::queue<Frame> frameQueue;
+
+  // Container for features
+  std::map <int, Feature> featureMap;
 
   // Container for edges
   std::vector<Edge> allEdges;
