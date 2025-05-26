@@ -149,6 +149,79 @@ Edge CameraManager::MonocularCameraPoseEstimation(const Feature& feature) {
   return edge;
 }
 
+// Edge CameraManager::StereoCameraPoseEstimation(const Feature& feature) {
+//     // Implement stereo camera pose estimation logic.
+//     if (featureMap.find(feature.frameID - 1) == featureMap.end()) {
+//         RCLCPP_WARN(this->get_logger(), "Previous frame not found for stereo pose estimation.");
+//         return Edge(); // Return empty edge
+//     }
+//     Feature prevFeature = featureMap[feature.frameID - 1]; 
+//     cv::Mat K = getCameraIntrinsics(); // 3x3 camera matrix
+//     double baseline = getStereoBaseline(); // in meters
+
+//     Edge edge;
+//     edge.fromID = prevFeature.frameID;
+//     edge.toID = feature.frameID;
+
+//     // Match descriptors between previous and current left images
+//     cv::BFMatcher matcher(cv::NORM_L2);
+//     std::vector<cv::DMatch> matches;
+//     matcher.match(prevFeature.leftDescriptors, feature.leftDescriptors, matches);
+
+//     // Filter good matches (as before)
+//     double min_dist = 100;
+//     for (const auto& m : matches) min_dist = std::min(min_dist, (double)m.distance);
+//     std::vector<cv::DMatch> good_matches;
+//     for (const auto& m : matches) {
+//         if (m.distance <= std::max(2 * min_dist, 30.0)) good_matches.push_back(m);
+//     }
+
+//     // Triangulate 3D points in previous and current frames
+//     std::vector<cv::Point3f> pts3d_prev, pts3d_curr;
+//     std::vector<cv::Point2f> pts2d_curr;
+//     for (const auto& m : good_matches) {
+//         // Get left/right keypoints for triangulation
+//         cv::Point2f kpL_prev = prevFeature.leftKeypoints[m.queryIdx].pt;
+//         cv::Point2f kpR_prev = prevFeature.rightKeypoints[m.queryIdx].pt;
+//         cv::Point2f kpL_curr = feature.leftKeypoints[m.trainIdx].pt;
+//         cv::Point2f kpR_curr = feature.rightKeypoints[m.trainIdx].pt;
+
+//         // Compute disparity and check validity
+//         float disp_prev = kpL_prev.x - kpR_prev.x;
+//         float disp_curr = kpL_curr.x - kpR_curr.x;
+//         if (disp_prev > 1.0 && disp_curr > 1.0) {
+//             // Triangulate previous 3D point
+//             float Z_prev = K.at<double>(0,0) * baseline / disp_prev;
+//             float X_prev = (kpL_prev.x - K.at<double>(0,2)) * Z_prev / K.at<double>(0,0);
+//             float Y_prev = (kpL_prev.y - K.at<double>(1,2)) * Z_prev / K.at<double>(1,1);
+//             pts3d_prev.emplace_back(X_prev, Y_prev, Z_prev);
+
+//             // Triangulate current 3D point (for PnP, we only need 2D in current frame)
+//             pts2d_curr.emplace_back(kpL_curr);
+//         }
+//     }
+
+//     if (pts3d_prev.size() < 5) {
+//         edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
+//         return edge;
+//     }
+
+//     // Solve PnP
+//     cv::Mat rvec, tvec, inliers;
+//     cv::solvePnPRansac(pts3d_prev, pts2d_curr, K, cv::Mat(), rvec, tvec, false, 100, 8.0, 0.99, inliers);
+
+//     // Convert rvec to rotation matrix
+//     cv::Mat R;
+//     cv::Rodrigues(rvec, R);
+
+//     // Build 4x4 transformation matrix
+//     edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
+//     R.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));
+//     tvec.copyTo(edge.relativePose(cv::Rect(3, 0, 1, 3)));
+
+//     return edge;
+// }
+
 Edge CameraManager::LoopClosureDetector() {
   // Implement loop closure detection logic.
   Edge edge;
