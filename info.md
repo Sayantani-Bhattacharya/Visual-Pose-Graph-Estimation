@@ -58,3 +58,25 @@ How it works:
 
 
 
+## Future improvements:
+
+
+1. For stereo camera, we can use stereo geometry for pose estimation, which is more robust than monocular.
+
+Current Impl: left-right fused (rectified) image for feature extraction and pose estimation, but you will lose the depth (3D) information that stereo geometry provides. 
+
+Using Fused (Monocular) Image
+    Pros:
+    Simpler pipeline (treat as monocular SLAM/VO).
+    Only need to extract and match features from one image per frame.
+    Cons:
+    You cannot triangulate 3D points directly from a single image.
+    Pose estimation will be up-to-scale (scale ambiguity).
+    You lose the robustness and metric scale that stereo provides.
+Using Stereo (Left & Right) Images
+    Pros:
+    You can triangulate 3D points using disparity between left and right images.
+    You get metric scale and more robust pose estimation.
+    Better for real-world navigation and mapping.
+    Cons:
+    Slightly more complex pipeline (need to match left-right features and triangulate).

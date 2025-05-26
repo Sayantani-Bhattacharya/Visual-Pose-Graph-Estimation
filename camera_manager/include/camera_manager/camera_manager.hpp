@@ -4,8 +4,11 @@
 #include <std_msgs/msg/header.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <nav_msgs/msg/path.hpp>
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include <mutex>
 #include <queue>
@@ -55,32 +58,35 @@ public:
   Edge LoopClosureDetector();
   void GraphBuilder(const Edge& estimatedPose, const Edge& loopConstraints);
   void VisualizeGraph();
+  void VisulizeTrajectory(Edge odomEdge);
 
 private:
   // Timer for camera image processing
   rclcpp::TimerBase::SharedPtr timer;
-  // Subscriber to camera image
+
+
   rclcpp::Subscription<Image>::SharedPtr cameraSub;
-  // Subscriber to camera info
   rclcpp::Subscription<CameraInfo>::SharedPtr cameraInfoSub;
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pathPub;
+  nav_msgs::msg::Path pathMsg;
+
+
 
   void timerCallback();
+
+
   // Timer Frequency
   float timerFreq; // [Hz]
-
   // Camera Intrinsics Info
   CameraIntrinsics cameraIntrinsics;
   bool collectedCameraInfo = false;
 
   // Mutex for safely accessing the frame queue
   std::mutex frameMutex;
-
   // Container for frames
   std::queue<Frame> frameQueue;
-
   // Container for features
   std::map <int, Feature> featureMap;
-
   // Container for edges
   std::vector<Edge> allEdges;
 
