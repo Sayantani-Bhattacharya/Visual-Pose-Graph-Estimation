@@ -10,7 +10,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
 
   pathPub = this->create_publisher<nav_msgs::msg::Path>("camera_trajectory", 10);
-  pathMsg.header.frame_id = "camera_frame"; // or "odom" or other fixed frame
+  pathMsg.header.frame_id = "camera_link"; // or "odom" or other fixed frame
 
   // Create subscriber to camera info
   this->cameraInfoSub = this->create_subscription<CameraInfo>(
@@ -20,7 +20,6 @@ CameraManager::CameraManager() : Node("camera_manager") {
     this->cameraIntrinsics.K = cv::Mat(3, 3, CV_64F, const_cast<double*>(msg->k.data())).clone();
     this->cameraIntrinsics.D = cv::Mat(msg->d.size(), 1, CV_64F, const_cast<double*>(msg->d.data())).clone();
     this->collectedCameraInfo = true;
-    RCLCPP_INFO(this->get_logger(), "Camera Intrinsics Collected");
   }
   );
 
@@ -69,16 +68,20 @@ void CameraManager::timerCallback() {
   }
   Feature features = this->FeatureExtractor(currentFrame);
   Edge odomEdge = this->MonocularCameraPoseEstimation(features);
-  Edge loopConstraints = this->LoopClosureDetector();
-  this->GraphBuilder(odomEdge, loopConstraints);
-  this->VisualizeGraph();
+  // Edge loopConstraints = this->LoopClosureDetector();
+  // this->GraphBuilder(odomEdge, loopConstraints);
+  // this->VisualizeGraph();
   this->VisulizeTrajectory(odomEdge);
 }
 
 void CameraManager::VisulizeTrajectory(Edge odomEdge){
+  if (odomEdge.relativePose.empty() || odomEdge.relativePose.rows != 4 || odomEdge.relativePose.cols != 4) {
+    RCLCPP_WARN(this->get_logger(), "[VisulizeTrajectory] Invalid or empty pose matrix, skipping visualization.");
+    return;
+  }
   geometry_msgs::msg::PoseStamped poseStamped;
   poseStamped.header.stamp = this->now();
-  poseStamped.header.frame_id = "camera_frame"; // or your chosen frame
+  poseStamped.header.frame_id = "camera_link"; // or your chosen frame
 
   // Extract translation from 4x4 pose matrix
   poseStamped.pose.position.x = odomEdge.relativePose.at<double>(0, 3);
@@ -99,6 +102,8 @@ void CameraManager::VisulizeTrajectory(Edge odomEdge){
   // Add to path and publish
   pathMsg.poses.push_back(poseStamped);
   pathMsg.header.stamp = this->now();
+
+  rclcpp::sleep_for(std::chrono::milliseconds(400));
   pathPub->publish(pathMsg);
 }
 
@@ -108,21 +113,29 @@ Feature CameraManager::FeatureExtractor(const Frame& frame) {
   cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
   Feature feature;
   feature.frameID = frame.frameID;
-  featureMap[feature.frameID] = feature; 
 
-  // TODO: Add check for empty image.
+  if (frame.image.empty()) {
+    RCLCPP_WARN(this->get_logger(), "[FeatureExtractor] Received empty image for frame ID %d", frame.frameID);
+    return feature; 
+  }
   // TODO: Add left and right image support for stereo cameras.
   extractor->detectAndCompute(
     frame.image, cv::noArray(), feature.keypoints, feature.descriptors
   );
+  featureMap[feature.frameID] = feature; 
   return feature;
 }
 
 Edge CameraManager::MonocularCameraPoseEstimation(const Feature& feature) {
   // Implement camera pose estimation logic.
+  if (featureMap.find(feature.frameID) == featureMap.end()) {
+      RCLCPP_WARN(this->get_logger(), "[MonocularCameraPoseEstimation] Current frame not found for ID %d", feature.frameID);
+      return Edge(); 
+  }
+
   if (featureMap.find(feature.frameID - 1) == featureMap.end()) {
-      RCLCPP_WARN(this->get_logger(), "Previous frame not found for pose estimation.");
-      return Edge(); // Return empty edge
+      RCLCPP_WARN(this->get_logger(), "[MonocularCameraPoseEstimation] Previous frame not found for pose estimation.");
+      return Edge(); 
   }
   Feature prevFeature = featureMap[feature.frameID - 1];
 
@@ -131,7 +144,7 @@ Edge CameraManager::MonocularCameraPoseEstimation(const Feature& feature) {
   
   Edge edge;
   edge.fromID = feature.frameID;
-  edge.toID = feature.frameID + 1; // Example increment
+  edge.toID = feature.frameID + 1; 
 
   // Match descriptors
   cv::BFMatcher matcher(cv::NORM_L2);
