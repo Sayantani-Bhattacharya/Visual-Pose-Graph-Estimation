@@ -19,7 +19,7 @@ using Image = sensor_msgs::msg::Image;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 
 struct CameraIntrinsics {
-  cv::Mat K; // Camera intrinsic matrix
+  cv::Mat K; // Camera intrinsic matrix: focal length, principal point..
   cv::Mat D; // Camera distortion coefficients
 };
 
@@ -47,14 +47,23 @@ struct Feature {
   cv::Mat descriptors; // SIFT/ORB descriptors
 };
 
+struct StereoFeature {
+  int frameID;
+  std::vector<cv::KeyPoint> leftKeypoints;
+  std::vector<cv::KeyPoint> rightKeypoints;
+  cv::Mat leftDescriptors; // SIFT/ORB descriptors for left image
+  cv::Mat rightDescriptors; // SIFT/ORB descriptors for right image
+};
+
 class CameraManager : public rclcpp::Node {
 public:
   CameraManager();
   ~CameraManager() = default;
 
   Feature FeatureExtractor(const Frame& frame);
+  StereoFeature StereoFeatureExtractor(const Frame& leftFrame, const Frame& rightFrame);
   Edge MonocularCameraPoseEstimation(const Feature& feature);
-  // Edge StereoCameraPoseEstimation(const Feature& feature);
+  Edge StereoCameraPoseEstimation(const StereoFeature& feature);
   Edge LoopClosureDetector();
   void GraphBuilder(const Edge& estimatedPose, const Edge& loopConstraints);
   void VisualizeGraph();
@@ -66,7 +75,11 @@ private:
 
 
   rclcpp::Subscription<Image>::SharedPtr cameraSub;
+  rclcpp::Subscription<Image>::SharedPtr leftCameraSub;
+  rclcpp::Subscription<Image>::SharedPtr rightCameraSub;
   rclcpp::Subscription<CameraInfo>::SharedPtr cameraInfoSub;
+  rclcpp::Subscription<CameraInfo>::SharedPtr leftCameraInfoSub;
+  rclcpp::Subscription<CameraInfo>::SharedPtr rightCameraInfoSub;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pathPub;
   nav_msgs::msg::Path pathMsg;
 
@@ -80,13 +93,25 @@ private:
   // Camera Intrinsics Info
   CameraIntrinsics cameraIntrinsics;
   bool collectedCameraInfo = false;
+  CameraIntrinsics leftCameraIntrinsics;
+  bool collectedLeftCameraInfo = false;
+  CameraIntrinsics rightCameraIntrinsics;
+  bool collectedRightCameraInfo = false;
+
 
   // Mutex for safely accessing the frame queue
   std::mutex frameMutex;
+  std::mutex leftFrameMutex;
+  std::mutex rightFrameMutex;
+
   // Container for frames
   std::queue<Frame> frameQueue;
+  std::queue<Frame> leftFrameQueue;
+  std::queue<Frame> rightFrameQueue;
+
   // Container for features
   std::map <int, Feature> featureMap;
+  std::map <int, StereoFeature> stereoFeatureMap;
   // Container for edges
   std::vector<Edge> allEdges;
 

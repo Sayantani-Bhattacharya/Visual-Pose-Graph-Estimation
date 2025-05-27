@@ -23,6 +23,28 @@ CameraManager::CameraManager() : Node("camera_manager") {
   }
   );
 
+  // Create subscriber to left camera info.
+  this->leftCameraInfoSub = this->create_subscription<CameraInfo>(
+    "camera/camera/infra1/camera_info", 10,
+    [this](const CameraInfo::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(this->leftFrameMutex);
+    this->leftCameraIntrinsics.K = cv::Mat(3, 3, CV_64F, const_cast<double*>(msg->k.data())).clone();
+    this->leftCameraIntrinsics.D = cv::Mat(msg->d.size(), 1, CV_64F, const_cast<double*>(msg->d.data())).clone();
+    this->collectedLeftCameraInfo = true;
+  }
+  );
+
+  // Create subscriber to right camera info.
+  this->rightCameraInfoSub = this->create_subscription<CameraInfo>(
+    "camera/camera/infra2/camera_info", 10,
+    [this](const CameraInfo::SharedPtr msg) {
+    std::lock_guard<std::mutex> lock(this->rightFrameMutex);
+    this->rightCameraIntrinsics.K = cv::Mat(3, 3, CV_64F, const_cast<double*>(msg->k.data())).clone();
+    this->rightCameraIntrinsics.D = cv::Mat(msg->d.size(), 1, CV_64F, const_cast<double*>(msg->d.data())).clone();
+    this->collectedRightCameraInfo = true;
+  }
+  );
+
   // Create subscriber to camera image and convert to OpenCV Image
   this->cameraSub = this->create_subscription<Image>(
     "camera/camera/color/image_raw", 10,
@@ -48,7 +70,53 @@ CameraManager::CameraManager() : Node("camera_manager") {
   }
   );
 
-  // TODO: Add support for stereo cameras by subscribing to left and right images.
+  this->leftCameraSub = this->create_subscription<Image>(
+    "camera/camera/infra1/image_rect_raw", 10,
+    [this](const Image::SharedPtr msg) {
+    static int frameID = 0;
+    if (!this->collectedLeftCameraInfo) {
+      RCLCPP_WARN(this->get_logger(), "Camera Info not collected yet");
+      return;
+    }
+    // Convert ROS Image to OpenCV Image
+    cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    Frame f;
+    f.stamp = this->now();
+    f.frameID = frameID++;
+    f.image = image;
+    // Create a scope to lock the mutex before accessing the left frame queue
+    {
+      std::lock_guard<std::mutex> lock(this->leftFrameMutex);
+      f.K = this->cameraIntrinsics.K.clone();
+      f.D = this->cameraIntrinsics.D.clone();
+      this->leftFrameQueue.push(std::move(f));
+    }
+  });
+
+  this->rightCameraSub = this->create_subscription<Image>(
+    "camera/camera/infra2/image_rect_raw", 10,
+    [this](const Image::SharedPtr msg) {
+    static int frameID = 0;
+    if (!this->collectedRightCameraInfo) {
+      RCLCPP_WARN(this->get_logger(), "Camera Info not collected yet");
+      return;
+    }
+    // Convert ROS Image to OpenCV Image
+    cv::Mat image = cv_bridge::toCvCopy(msg, "bgr8")->image;
+    Frame f;
+    f.stamp = this->now();
+    f.frameID = frameID++;
+    f.image = image;
+    // Create a scope to lock the mutex before accessing the right frame queue
+    {
+      std::lock_guard<std::mutex> lock(this->rightFrameMutex);
+      f.K = this->cameraIntrinsics.K.clone();
+      f.D = this->cameraIntrinsics.D.clone();
+      this->rightFrameQueue.push(std::move(f));
+    }
+  });
+
+
 
   // Timer for processing camera images
   this->timer = this->create_wall_timer(
@@ -59,6 +127,9 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
 void CameraManager::timerCallback() {
   Frame currentFrame;
+  Frame currentFrameLeft;
+  Frame currentFrameRight;
+  // TODO: remove the extra brackets? and see if this is the correct way to impl.
   {
     std::lock_guard<std::mutex> lock(this->frameMutex);
     if (!this->frameQueue.empty()) {
@@ -66,8 +137,34 @@ void CameraManager::timerCallback() {
       this->frameQueue.pop();
     }
   }
-  Feature features = this->FeatureExtractor(currentFrame);
-  Edge odomEdge = this->MonocularCameraPoseEstimation(features);
+  {
+    std::lock_guard<std::mutex> lock(this->leftFrameMutex);
+    if (!this->leftFrameQueue.empty()) {
+      currentFrameLeft = std::move(this->leftFrameQueue.front());
+      this->leftFrameQueue.pop();
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(this->rightFrameMutex);
+    if (!this->rightFrameQueue.empty()) {
+      currentFrameRight = std::move(this->rightFrameQueue.front());
+      this->rightFrameQueue.pop();
+    }
+  }
+
+  // TODO: make this a config paramter later.
+  bool stereo = true;
+  Edge odomEdge;
+  if (stereo)
+  {
+    StereoFeature stereoFeatures = this->StereoFeatureExtractor(currentFrameLeft, currentFrameRight); 
+    odomEdge = this->StereoCameraPoseEstimation(stereoFeatures);
+  }
+  else
+  {
+    Feature features = this->FeatureExtractor(currentFrame);
+    odomEdge = this->MonocularCameraPoseEstimation(features);
+  }  
   // Edge loopConstraints = this->LoopClosureDetector();
   // this->GraphBuilder(odomEdge, loopConstraints);
   // this->VisualizeGraph();
@@ -124,6 +221,24 @@ Feature CameraManager::FeatureExtractor(const Frame& frame) {
   );
   featureMap[feature.frameID] = feature; 
   return feature;
+}
+
+StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, const Frame& rightFrame) {
+  // Implement stereo feature extraction logic.
+  StereoFeature stereoFeature;
+  stereoFeature.frameID = leftFrame.frameID;
+
+  if (leftFrame.image.empty() || rightFrame.image.empty()) {
+    RCLCPP_WARN(this->get_logger(), "[StereoFeatureExtractor] Received empty images for frame ID %d", leftFrame.frameID);
+    return stereoFeature; 
+  }
+
+  cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+  extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
+  extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
+
+  stereoFeatureMap[stereoFeature.frameID] = stereoFeature; 
+  return stereoFeature;
 }
 
 Edge CameraManager::MonocularCameraPoseEstimation(const Feature& feature) {
@@ -193,70 +308,82 @@ Edge CameraManager::MonocularCameraPoseEstimation(const Feature& feature) {
   return edge;
 }
 
-// Edge CameraManager::StereoCameraPoseEstimation(const Feature& feature) {
-//     // Implement stereo camera pose estimation logic.
-//     if (featureMap.find(feature.frameID - 1) == featureMap.end()) {
-//         RCLCPP_WARN(this->get_logger(), "Previous frame not found for stereo pose estimation.");
-//         return Edge(); // Return empty edge
-//     }
-//     Feature prevFeature = featureMap[feature.frameID - 1]; 
-//     cv::Mat K = getCameraIntrinsics(); // 3x3 camera matrix
-//     double baseline = getStereoBaseline(); // in meters
-//     Edge edge;
-//     edge.fromID = prevFeature.frameID;
-//     edge.toID = feature.frameID;
-//     // Match descriptors between previous and current left images
-//     cv::BFMatcher matcher(cv::NORM_L2);
-//     std::vector<cv::DMatch> matches;
-//     matcher.match(prevFeature.leftDescriptors, feature.leftDescriptors, matches);
-//     // Filter good matches (as before)
-//     double min_dist = 100;
-//     for (const auto& m : matches) min_dist = std::min(min_dist, (double)m.distance);
-//     std::vector<cv::DMatch> good_matches;
-//     for (const auto& m : matches) {
-//         if (m.distance <= std::max(2 * min_dist, 30.0)) good_matches.push_back(m);
-//     }
-//     // Triangulate 3D points in previous and current frames
-//     std::vector<cv::Point3f> pts3d_prev, pts3d_curr;
-//     std::vector<cv::Point2f> pts2d_curr;
-//     for (const auto& m : good_matches) {
-//         // Get left/right keypoints for triangulation
-//         cv::Point2f kpL_prev = prevFeature.leftKeypoints[m.queryIdx].pt;
-//         cv::Point2f kpR_prev = prevFeature.rightKeypoints[m.queryIdx].pt;
-//         cv::Point2f kpL_curr = feature.leftKeypoints[m.trainIdx].pt;
-//         cv::Point2f kpR_curr = feature.rightKeypoints[m.trainIdx].pt;
-//         // Compute disparity and check validity
-//         float disp_prev = kpL_prev.x - kpR_prev.x;
-//         float disp_curr = kpL_curr.x - kpR_curr.x;
-//         if (disp_prev > 1.0 && disp_curr > 1.0) {
-//             // Triangulate previous 3D point
-//             float Z_prev = K.at<double>(0,0) * baseline / disp_prev;
-//             float X_prev = (kpL_prev.x - K.at<double>(0,2)) * Z_prev / K.at<double>(0,0);
-//             float Y_prev = (kpL_prev.y - K.at<double>(1,2)) * Z_prev / K.at<double>(1,1);
-//             pts3d_prev.emplace_back(X_prev, Y_prev, Z_prev);
-//             // Triangulate current 3D point (for PnP, we only need 2D in current frame)
-//             pts2d_curr.emplace_back(kpL_curr);
-//         }
-//     }
-//     if (pts3d_prev.size() < 5) {
-//         edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
-//         return edge;
-//     }
-//     // Solve PnP
-//     cv::Mat rvec, tvec, inliers;
-//     cv::solvePnPRansac(pts3d_prev, pts2d_curr, K, cv::Mat(), rvec, tvec, false, 100, 8.0, 0.99, inliers);
-//     // Convert rvec to rotation matrix
-//     cv::Mat R;
-//     cv::Rodrigues(rvec, R);
-//     // Build 4x4 transformation matrix
-//     edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
-//     R.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));
-//     tvec.copyTo(edge.relativePose(cv::Rect(3, 0, 1, 3)));
-//     return edge;
-// }
+Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& feature) {
+    
+    // Implement stereo camera pose estimation logic.
+    if (stereoFeatureMap.find(feature.frameID - 1) == stereoFeatureMap.end()) {
+        RCLCPP_WARN(this->get_logger(), "[Stereo Pose Estimation] Previous frame not found.");
+        return Edge(); 
+    }
+    if (stereoFeatureMap.find(feature.frameID) == stereoFeatureMap.end()) {
+        RCLCPP_WARN(this->get_logger(), "[Stereo Pose Estimation] Current frame not found.");
+        return Edge(); 
+    }
+    StereoFeature prevFeature = stereoFeatureMap[feature.frameID - 1]; 
+    cv::Mat K = this->cameraIntrinsics.K; // 3x3 camera matrix
+    float stereoBaseline = 0.05;  // distance between left and right cameras [in meters]
+    double baseline = stereoBaseline; 
+
+    Edge edge;
+    edge.fromID = prevFeature.frameID;
+    edge.toID = feature.frameID;
+
+    // Match descriptors between previous and current left images
+    cv::BFMatcher matcher(cv::NORM_L2);
+    std::vector<cv::DMatch> matches;
+    matcher.match(prevFeature.leftDescriptors, feature.leftDescriptors, matches);
+
+    // Filter good matches 
+    double min_dist = 100;
+    for (const auto& m : matches) min_dist = std::min(min_dist, (double)m.distance);
+    std::vector<cv::DMatch> good_matches;
+    for (const auto& m : matches) {
+        if (m.distance <= std::max(2 * min_dist, 30.0)) good_matches.push_back(m);
+    }
+    // Triangulate 3D points in previous and current frames
+    std::vector<cv::Point3f> pts3d_prev, pts3d_curr;
+    std::vector<cv::Point2f> pts2d_curr;
+    for (const auto& m : good_matches) {
+        // Get left/right keypoints for triangulation
+        cv::Point2f kpL_prev = prevFeature.leftKeypoints[m.queryIdx].pt;
+        cv::Point2f kpR_prev = prevFeature.rightKeypoints[m.queryIdx].pt;
+        cv::Point2f kpL_curr = feature.leftKeypoints[m.trainIdx].pt;
+        cv::Point2f kpR_curr = feature.rightKeypoints[m.trainIdx].pt;
+        // Compute disparity and check validity
+        float disp_prev = kpL_prev.x - kpR_prev.x;
+        float disp_curr = kpL_curr.x - kpR_curr.x;
+        if (disp_prev > 1.0 && disp_curr > 1.0) {
+            // Triangulate previous 3D point
+            float Z_prev = K.at<double>(0,0) * baseline / disp_prev;
+            float X_prev = (kpL_prev.x - K.at<double>(0,2)) * Z_prev / K.at<double>(0,0);
+            float Y_prev = (kpL_prev.y - K.at<double>(1,2)) * Z_prev / K.at<double>(1,1);
+            pts3d_prev.emplace_back(X_prev, Y_prev, Z_prev);
+            // Triangulate current 3D point (for PnP, we only need 2D in current frame)
+            pts2d_curr.emplace_back(kpL_curr);
+        }
+    }
+    if (pts3d_prev.size() < 5) {
+        edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
+        return edge;
+    }
+
+    // Solve PnP: to estimate the rotation and translation between the previous and current frames using the 3D-2D correspondences.
+    cv::Mat rvec, tvec, inliers;
+    cv::solvePnPRansac(pts3d_prev, pts2d_curr, K, cv::Mat(), rvec, tvec, false, 100, 8.0, 0.99, inliers);
+    
+    // Convert rvec to rotation matrix
+    cv::Mat R;
+    cv::Rodrigues(rvec, R);
+
+    // Build 4x4 transformation matrix
+    edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
+    R.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));
+    tvec.copyTo(edge.relativePose(cv::Rect(3, 0, 1, 3)));
+    return edge;
+}
 
 Edge CameraManager::LoopClosureDetector() {
-  // Implement loop closure detection logic.
+  // TODO: Implement loop closure detection logic.
   Edge edge;
   edge.fromID = -1; // Placeholder
   edge.toID = -1; // Placeholder
@@ -264,11 +391,11 @@ Edge CameraManager::LoopClosureDetector() {
 }
 
 void CameraManager::GraphBuilder(const Edge& estimatedPose, const Edge& loopConstraints) {
-  // Implement graph building logic.
+  // TODO: Implement graph building logic.
 }
 
 void CameraManager::VisualizeGraph() {
-  // Implement graph visualization logic.
+  // TODO: Implement graph visualization logic.
 }
 
 int main(int argc, char* argv[]) {
