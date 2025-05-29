@@ -24,5 +24,13 @@ def generate_launch_description():
             executable='camera_manager',
             name='camera_manager',
             output='screen'
+        ),
+
+        Node(
+            package='rviz2',
+            executable='rviz2',
+            name='rviz2',
+            output='screen'
         )
+
     ])
