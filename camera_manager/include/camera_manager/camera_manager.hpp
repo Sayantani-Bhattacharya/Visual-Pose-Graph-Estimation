@@ -9,14 +9,24 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
 
 #include <mutex>
 #include <queue>
 #include <vector>
+#include <map>
 
 using Header = std_msgs::msg::Header;
 using Image = sensor_msgs::msg::Image;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
+using Path = nav_msgs::msg::Path;
+using PoseStamped = geometry_msgs::msg::PoseStamped;
+using ImageMsg = sensor_msgs::msg::Image::ConstSharedPtr;
+using CameraInfoMsg = sensor_msgs::msg::CameraInfo::ConstSharedPtr;
+using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg, ImageMsg, CameraInfoMsg>;
+using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
 
 struct CameraIntrinsics {
   cv::Mat K; // Camera intrinsic matrix: focal length, principal point..
@@ -28,9 +38,8 @@ struct Frame {
   rclcpp::Time stamp;
   cv::Mat image;
   std::vector<cv::KeyPoint> keypoints;
+  CameraIntrinsics intrinsics; // Camera intrinsics
   cv::Mat descriptors; // SIFT/ORB descriptors
-  cv::Mat K; // Camera intrinsic matrix
-  cv::Mat D; // Camera distortion coefficients
 };
 
 struct Edge {
@@ -38,7 +47,6 @@ struct Edge {
   int toID;
   cv::Mat relativePose; // 4x4 SE(3) Transformation matrix T_from_to
   cv::Mat covariance; // Covariance of the relative pose
-  bool isLoopClosure; // Flag for loop closure edge
 };
 
 struct Feature {
@@ -60,36 +68,48 @@ public:
   CameraManager();
   ~CameraManager() = default;
 
-  Feature FeatureExtractor(const Frame& frame);
+  Feature MonocularFeatureExtractor(const Frame& frame);
   StereoFeature StereoFeatureExtractor(const Frame& leftFrame, const Frame& rightFrame);
-  Edge MonocularCameraPoseEstimation(const Feature& feature);
-  Edge StereoCameraPoseEstimation(const StereoFeature& feature);
+  Edge MonocularCameraPoseEstimation(const Feature& newFeature);
+  Edge StereoCameraPoseEstimation(const StereoFeature& newFeature);
+  void UpdateCameraPoseVisualization();
+  void initializePoseGraph();
+  void addEdge(const Edge& edge);
   Edge LoopClosureDetector();
-  void GraphBuilder(const Edge& estimatedPose, const Edge& loopConstraints);
-  void VisualizeGraph();
-  void VisulizeTrajectory(Edge odomEdge);
 
 private:
   // Timer for camera image processing
   rclcpp::TimerBase::SharedPtr timer;
 
+  // Synchronized subscribers for stereo and monocular cameras
+  std::shared_ptr<message_filters::Subscriber<ImageMsg>> leftCameraSub;
+  std::shared_ptr<message_filters::Subscriber<CameraInfoMsg>> leftCameraInfoSub;
+  std::shared_ptr<message_filters::Subscriber<ImageMsg>> rightCameraSub;
+  std::shared_ptr<message_filters::Subscriber<CameraInfoMsg>> rightCameraInfoSub;
+  std::shared_ptr<message_filters::Subscriber<ImageMsg>> cameraSub;
+  std::shared_ptr<message_filters::Subscriber<CameraInfoMsg>> cameraInfoSub;
+  std::shared_ptr<message_filters::Synchronizer<StereoSyncPolicy>> stereoSync;
+  std::shared_ptr<message_filters::Synchronizer<MonoSyncPolicy>> monoSync;
 
-  rclcpp::Subscription<Image>::SharedPtr cameraSub;
-  rclcpp::Subscription<Image>::SharedPtr leftCameraSub;
-  rclcpp::Subscription<Image>::SharedPtr rightCameraSub;
-  rclcpp::Subscription<CameraInfo>::SharedPtr cameraInfoSub;
-  rclcpp::Subscription<CameraInfo>::SharedPtr leftCameraInfoSub;
-  rclcpp::Subscription<CameraInfo>::SharedPtr rightCameraInfoSub;
-  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pathPub;
-  nav_msgs::msg::Path pathMsg;
+  // Publisher for estimated path of the camera pose
+  rclcpp::Publisher<Path>::SharedPtr cameraEstimatePathPub;
+  Path cameraPoseEstimatePath;
 
-
-
+  // Timer Callback for pose-graph management and visualization
   void timerCallback();
 
+  // Synchronized callback for sterero cameras
+  void synchronizedStereoCallback(
+    const Image::ConstSharedPtr left_image_msg,
+    const CameraInfo::ConstSharedPtr left_info_msg,
+    const Image::ConstSharedPtr right_image_msg,
+    const CameraInfo::ConstSharedPtr right_info_msg);
 
-  // Timer Frequency
-  float timerFreq; // [Hz]
+  // Synchronized callback for monocular cameras
+  void synchronizedMonocularCallback(
+    const Image::ConstSharedPtr image_msg,
+    const CameraInfo::ConstSharedPtr info_msg);
+
   // Camera Intrinsics Info
   CameraIntrinsics cameraIntrinsics;
   bool collectedCameraInfo = false;
@@ -98,22 +118,19 @@ private:
   CameraIntrinsics rightCameraIntrinsics;
   bool collectedRightCameraInfo = false;
 
+  // Configuration parameters
+  float timerFreq; // Timer frequency [Hz]
+  bool useStereoCamera; // Use stereo camera or monocular camera
+  double stereoBaseline; // Baseline distance between stereo cameras [m]
 
-  // Mutex for safely accessing the frame queue
-  std::mutex frameMutex;
-  std::mutex leftFrameMutex;
-  std::mutex rightFrameMutex;
+  // Internal State (previous frames and features)
+  Frame previousFrame; // Previous frame for pose estimation
+  StereoFeature previousStereoFeature; // Previous stereo feature for pose estimation
+  Feature previousFeature; // Previous feature for pose estimation
 
-  // Container for frames
-  std::queue<Frame> frameQueue;
-  std::queue<Frame> leftFrameQueue;
-  std::queue<Frame> rightFrameQueue;
-
-  // Container for features
-  std::map <int, Feature> featureMap;
-  std::map <int, StereoFeature> stereoFeatureMap;
-  // Container for edges
-  std::vector<Edge> allEdges;
+  // Pose Estimate
+  cv::Mat currentPose; // Current camera pose estimate [SE(3)]
+  std::mutex poseMutex; // Mutex for currentPose estimate
 
 };
 #endif // !CAMERA_MANAGER_HPP

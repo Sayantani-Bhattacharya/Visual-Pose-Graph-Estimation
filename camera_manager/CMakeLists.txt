@@ -16,8 +16,8 @@ find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(message_filters REQUIRED)
 
 include_directories(
   include/camera_manager
@@ -26,7 +26,16 @@ include_directories(
 
 # Camera Manager Node
 add_executable(camera_manager src/camera_manager.cpp)
-ament_target_dependencies(camera_manager rclcpp sensor_msgs OpenCV cv_bridge image_transport nav_msgs tf2 tf2_ros)
+ament_target_dependencies(camera_manager
+  rclcpp
+  sensor_msgs
+  OpenCV
+  cv_bridge
+  image_transport
+  nav_msgs
+  tf2_ros
+  message_filters
+)
 target_link_libraries(camera_manager ${OpenCV_LIBRARIES})
 
 install(TARGETS
