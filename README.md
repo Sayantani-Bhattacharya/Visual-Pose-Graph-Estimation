@@ -31,6 +31,9 @@ Final project for MSAI495: Computer Vision
 - https://www.mathworks.com/help/nav/ug/reduce-drift-visual-odom-pose-graph.html
 - https://youtube.com/playlist?list=PLoAomNxPy04feqEsgs2oTGrEFztkSoLjH&si=HzNw6oAGWwe0BXag
 - https://turtlebot.github.io/turtlebot4-user-manual/software/turtlebot4_setup.html
+- https://stackoverflow.com/questions/13376441/relative-camera-pose-estimation-using-opencv
+- https://docs.ros.org/en/ros2_packages/jazzy/api/message_filters/doc/Tutorials/Writing-A-Time-Synchronizer-Cpp.html
+- https://docs.ros.org/en/ros2_packages/jazzy/api/message_filters/doc/Tutorials/Approximate-Synchronizer-Cpp.html
 
 ## Hardware:
 - TurtleBot3
