@@ -4,8 +4,8 @@
   <name>camera_manager</name>
   <version>0.0.0</version>
   <description>ROS Package for Visual Pose-Graph Estimation</description>
-  <maintainer email="sharwin.patil@u.northwestern.edu">Sharwin Patil</maintainer>
-  <maintainer email="sayantani.bhattacharya2025@u.northwestern.edu">Sayantani Bhattacharya</maintainer>
+  <maintainer email="sharwinpatil2025@u.northwestern.edu">Sharwin Patil</maintainer>
+  <maintainer email="sayantanibhattacharya2025@u.northwestern.edu">Sayantani Bhattacharya</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
