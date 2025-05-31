@@ -8,23 +8,23 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include "tf2_ros/transform_broadcaster.h"
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
-
 #include <mutex>
 #include <queue>
 #include <vector>
 #include <map>
 
 using Header = std_msgs::msg::Header;
-using Image = sensor_msgs::msg::Image;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Path = nav_msgs::msg::Path;
 using PoseStamped = geometry_msgs::msg::PoseStamped;
-using ImageMsg = sensor_msgs::msg::Image::ConstSharedPtr;
-using CameraInfoMsg = sensor_msgs::msg::CameraInfo::ConstSharedPtr;
+using ImageMsg = sensor_msgs::msg::Image;
+using CameraInfoMsg = sensor_msgs::msg::CameraInfo;
 using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg, ImageMsg, CameraInfoMsg>;
 using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
 
@@ -95,28 +95,28 @@ private:
   rclcpp::Publisher<Path>::SharedPtr cameraEstimatePathPub;
   Path cameraPoseEstimatePath;
 
+  // Transform Broadcaster for publishing camera poses
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
+
   // Timer Callback for pose-graph management and visualization
   void timerCallback();
 
   // Synchronized callback for sterero cameras
   void synchronizedStereoCallback(
-    const Image::ConstSharedPtr left_image_msg,
+    const sensor_msgs::msg::Image::ConstSharedPtr left_image_msg,
     const CameraInfo::ConstSharedPtr left_info_msg,
-    const Image::ConstSharedPtr right_image_msg,
+    const sensor_msgs::msg::Image::ConstSharedPtr right_image_msg,
     const CameraInfo::ConstSharedPtr right_info_msg);
 
   // Synchronized callback for monocular cameras
   void synchronizedMonocularCallback(
-    const Image::ConstSharedPtr image_msg,
+    const sensor_msgs::msg::Image::ConstSharedPtr image_msg,
     const CameraInfo::ConstSharedPtr info_msg);
 
   // Camera Intrinsics Info
   CameraIntrinsics cameraIntrinsics;
-  bool collectedCameraInfo = false;
   CameraIntrinsics leftCameraIntrinsics;
-  bool collectedLeftCameraInfo = false;
   CameraIntrinsics rightCameraIntrinsics;
-  bool collectedRightCameraInfo = false;
 
   // Configuration parameters
   float timerFreq; // Timer frequency [Hz]

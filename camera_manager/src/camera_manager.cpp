@@ -14,7 +14,11 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
   // Setup Path publisher for camera trajectory
   this->cameraEstimatePathPub = this->create_publisher<Path>("camera_trajectory", 10);
-  this->cameraPoseEstimatePath.header.frame_id = "camera_link"; // or "odom" or other fixed frame
+  this->cameraPoseEstimatePath.header.frame_id = "camera_link";
+
+  // Setup tf broadcaster
+  this->tfBroadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+
 
   // Create subscribers for stereo and monocular cameras
   if (this->useStereoCamera) {
@@ -55,6 +59,20 @@ CameraManager::CameraManager() : Node("camera_manager") {
   // Initialize PoseGraph
   this->initializePoseGraph();
 
+  // Publish a static transform at the origin of the world frame
+  geometry_msgs::msg::TransformStamped worldTransform;
+  worldTransform.header.stamp = this->now();
+  worldTransform.header.frame_id = "world";
+  worldTransform.child_frame_id = "camera_link";
+  worldTransform.transform.translation.x = 0.0;
+  worldTransform.transform.translation.y = 0.0;
+  worldTransform.transform.translation.z = 0.0;
+  worldTransform.transform.rotation.x = 0.0;
+  worldTransform.transform.rotation.y = 0.0;
+  worldTransform.transform.rotation.z = 0.0;
+  worldTransform.transform.rotation.w = 1.0;
+  this->tfBroadcaster->sendTransform(worldTransform);
+
   // Setup timer for pose-graph management and visualization
   this->timer = this->create_wall_timer(
     std::chrono::milliseconds(static_cast<int>(1000 / this->timerFreq)),
@@ -84,6 +102,10 @@ void CameraManager::synchronizedStereoCallback(
   currentLeftFrame.intrinsics.D = cv::Mat(left_info_msg->d.size(), 1, CV_64F, const_cast<double*>(left_info_msg->d.data())).clone();
   currentRightFrame.intrinsics.K = cv::Mat(3, 3, CV_64F, const_cast<double*>(right_info_msg->k.data())).clone();
   currentRightFrame.intrinsics.D = cv::Mat(right_info_msg->d.size(), 1, CV_64F, const_cast<double*>(right_info_msg->d.data())).clone();
+  this->leftCameraIntrinsics.K = currentLeftFrame.intrinsics.K.clone();
+  this->leftCameraIntrinsics.D = currentLeftFrame.intrinsics.D.clone();
+  this->rightCameraIntrinsics.K = currentRightFrame.intrinsics.K.clone();
+  this->rightCameraIntrinsics.D = currentRightFrame.intrinsics.D.clone();
   // Assign timestamps and frame IDs
   currentLeftFrame.stamp = left_image_msg->header.stamp;
   currentRightFrame.stamp = right_image_msg->header.stamp;
@@ -105,7 +127,7 @@ void CameraManager::synchronizedStereoCallback(
   }
 
   // 2. Odometry (Pose) Estimation 
-  Edge odomEdge = this->StereoCameraPoseEstimation(this->previousStereoFeature, currentStereoFeature);
+  Edge odomEdge = this->StereoCameraPoseEstimation(currentStereoFeature);
   this->previousStereoFeature = currentStereoFeature; // Update previous feature for next iteration
 
   // 3. Pose-Graph Management
@@ -136,7 +158,8 @@ void CameraManager::synchronizedMonocularCallback(
   // Extract intrinsics
   currentFrame.intrinsics.K = cv::Mat(3, 3, CV_64F, const_cast<double*>(info_msg->k.data())).clone();
   currentFrame.intrinsics.D = cv::Mat(info_msg->d.size(), 1, CV_64F, const_cast<double*>(info_msg->d.data())).clone();
-
+  this->cameraIntrinsics.K = currentFrame.intrinsics.K.clone();
+  this->cameraIntrinsics.D = currentFrame.intrinsics.D.clone();
   currentFrame.stamp = image_msg->header.stamp;
   currentFrame.frameID = frameID++; // Increment frame ID
   if (currentFrame.image.empty() || currentFrame.intrinsics.K.empty()) {
@@ -367,10 +390,23 @@ void CameraManager::UpdateCameraPoseVisualization() {
   this->cameraPoseEstimatePath.poses.push_back(poseStamped);
   this->cameraPoseEstimatePath.header.stamp = this->now();
   this->cameraEstimatePathPub->publish(cameraPoseEstimatePath);
+
+  // Broadcast the camera pose as a TF transform
+  geometry_msgs::msg::TransformStamped transformStamped;
+  transformStamped.header.stamp = this->now();
+  transformStamped.header.frame_id = "world";
+  transformStamped.child_frame_id = "camera_link";
+  transformStamped.transform.translation.x = poseStamped.pose.position.x;
+  transformStamped.transform.translation.y = poseStamped.pose.position.y;
+  transformStamped.transform.translation.z = poseStamped.pose.position.z;
+  transformStamped.transform.rotation.x = poseStamped.pose.orientation.x;
+  transformStamped.transform.rotation.y = poseStamped.pose.orientation.y;
+  transformStamped.transform.rotation.z = poseStamped.pose.orientation.z;
+  transformStamped.transform.rotation.w = poseStamped.pose.orientation.w;
+  this->tfBroadcaster->sendTransform(transformStamped);
 }
 
-
-void initializePoseGraph() {
+void CameraManager::initializePoseGraph() {
   // TODO: Initialize a graph using g20/GTSAM/Ceres
   // Nodes are camera poses, edges are relative transformations between them.
 }
@@ -381,6 +417,8 @@ void CameraManager::addEdge(const Edge& edge) {
 
 Edge CameraManager::LoopClosureDetector() {
   // TODO: Implement loop closure detection logic.
+  Edge edge;
+  return edge;
 }
 
 int main(int argc, char* argv[]) {
