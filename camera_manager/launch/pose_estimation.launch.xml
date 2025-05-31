@@ -1,0 +1,7 @@
+<launch>
+<arg name="rviz_config" default="$(find-pkg-share camera_manager)/config/PoseTraj.rviz" description="The RVIZ config file (.rviz)"/>
+  <node pkg="camera_manager" exec="camera_manager" name="camera_manager" output="screen">
+    <param from="$(find-pkg-share camera_manager)/config/camera_manager_config.yaml"/>
+  </node>
+  <node pkg="rviz2" exec="rviz2" args="-d $(var rviz_config)" />
+</launch>
