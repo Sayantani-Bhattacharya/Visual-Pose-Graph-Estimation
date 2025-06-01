@@ -95,6 +95,9 @@ private:
   rclcpp::Publisher<Path>::SharedPtr cameraEstimatePathPub;
   Path cameraPoseEstimatePath;
 
+  // Publisher for images with features
+  rclcpp::Publisher<ImageMsg>::SharedPtr featureImagePub;
+
   // Transform Broadcaster for publishing camera poses
   std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
 

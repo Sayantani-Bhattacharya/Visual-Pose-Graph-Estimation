@@ -16,6 +16,9 @@ CameraManager::CameraManager() : Node("camera_manager") {
   this->cameraEstimatePathPub = this->create_publisher<Path>("camera_trajectory", 10);
   this->cameraPoseEstimatePath.header.frame_id = "camera_link";
 
+  // Setup Image publisher for feature visualization
+  this->featureImagePub = this->create_publisher<ImageMsg>("camera/feature_image", 10);
+
   // Setup tf broadcaster
   this->tfBroadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -120,6 +123,25 @@ void CameraManager::synchronizedStereoCallback(
   // 1. Feature Extraction
   StereoFeature currentStereoFeature = this->StereoFeatureExtractor(currentLeftFrame, currentRightFrame);
 
+  // Create a copy of the left image with overlaid features for visualization
+  cv::Mat features;
+  currentLeftFrame.image.copyTo(features);
+  if (!currentStereoFeature.leftKeypoints.empty()) {
+    cv::drawKeypoints(
+      currentLeftFrame.image, currentStereoFeature.leftKeypoints, features,
+      cv::Scalar(0, 255, 0), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
+    );
+  }
+  // Create ROS Image message to publish
+  auto header = std_msgs::msg::Header();
+  header.stamp = this->now();
+  header.frame_id = "camera_link";
+  auto featureImageMsg = cv_bridge::CvImage(
+    header, "bgr8", features
+  ).toImageMsg();
+  // Publish the feature image
+  this->featureImagePub->publish(*featureImageMsg);
+
   // Update previous features if we have not processed any frames yet
   if (this->previousStereoFeature.frameID == 0 && currentStereoFeature.frameID > 0) {
     this->previousStereoFeature = currentStereoFeature;
@@ -168,6 +190,25 @@ void CameraManager::synchronizedMonocularCallback(
 
   // 1. Feature Extraction
   Feature currentFeature = this->MonocularFeatureExtractor(currentFrame);
+
+  // Create a copy of the image with overlaid features for visualization
+  cv::Mat features;
+  currentFrame.image.copyTo(features);
+  if (!currentFeature.keypoints.empty()) {
+    cv::drawKeypoints(
+      currentFrame.image, currentFeature.keypoints, features,
+      cv::Scalar(0, 255, 0), cv::DrawMatchesFlags::DRAW_RICH_KEYPOINTS
+    );
+  }
+  // Create ROS Image message to publish
+  auto header = std_msgs::msg::Header();
+  header.stamp = this->now();
+  header.frame_id = "camera_link";
+  auto featureImageMsg = cv_bridge::CvImage(
+    header, "bgr8", features
+  ).toImageMsg();
+  // Publish the feature image
+  this->featureImagePub->publish(*featureImageMsg);
 
   // Update previous features if we have not processed any frames yet
   if (this->previousFeature.frameID == 0 && currentFeature.frameID > 0) {
@@ -244,13 +285,13 @@ Edge CameraManager::MonocularCameraPoseEstimation(const Feature& newFeature) {
   // Filter good matches
   double max_dist = 0;
   double min_dist = 100;
-  for (int i = 0; i < matches.size(); i++) {
+  for (unsigned int i = 0; i < matches.size(); i++) {
     double dist = matches[i].distance;
     if (dist < min_dist) min_dist = dist;
     if (dist > max_dist) max_dist = dist;
   }
   std::vector<cv::DMatch> good_matches;
-  for (int i = 0; i < matches.size(); i++) {
+  for (unsigned int i = 0; i < matches.size(); i++) {
     if (matches[i].distance <= std::max(2 * min_dist, 30.0)) {
       good_matches.push_back(matches[i]);
     }
