@@ -19,6 +19,8 @@
 #include <vector>
 #include <map>
 
+#include "feature_extractor.hpp"
+
 using Header = std_msgs::msg::Header;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Path = nav_msgs::msg::Path;
