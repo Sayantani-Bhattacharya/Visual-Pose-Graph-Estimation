@@ -7,10 +7,12 @@ CameraManager::CameraManager() : Node("camera_manager") {
   this->timerFreq = this->declare_parameter("timer_frequency", 10.0); // [Hz] Timer for managing pose-graph
   this->useStereoCamera = this->declare_parameter("use_stereo_camera", true); // Use stereo camera by default
   this->stereoBaseline = this->declare_parameter("stereo_baseline", 0.05); // [m] Default baseline distance between stereo cameras
+  this->featureExtractionMethod = this->declare_parameter("feature_extraction_method", "SIFT"); // Default feature extraction method
   // Get params from config file.
   this->timerFreq = this->get_parameter("timer_frequency").as_double();
   this->useStereoCamera = this->get_parameter("use_stereo_camera").as_bool();
   this->stereoBaseline = this->get_parameter("stereo_baseline").as_double();
+  this->featureExtractionMethod = this->get_parameter("feature_extraction_method").as_string();
 
   // Setup Path publisher for camera trajectory
   this->cameraEstimatePathPub = this->create_publisher<Path>("camera_trajectory", 10);
@@ -239,7 +241,7 @@ void CameraManager::synchronizedMonocularCallback(
 
 Feature CameraManager::MonocularFeatureExtractor(const Frame& frame) {
   // TODO: SIFT is slow but accurate than ORB, may need to switch to ORB for real-time applications.
-  //TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
+  // TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
   cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
   Feature feature;
   feature.frameID = frame.frameID;

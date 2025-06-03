@@ -125,6 +125,7 @@ private:
   float timerFreq; // Timer frequency [Hz]
   bool useStereoCamera; // Use stereo camera or monocular camera
   double stereoBaseline; // Baseline distance between stereo cameras [m]
+  std::string featureExtractionMethod; // Feature extraction method ["SIFT", "ORB", "SURF"]
 
   // Internal State (previous frames and features)
   Frame previousFrame; // Previous frame for pose estimation
