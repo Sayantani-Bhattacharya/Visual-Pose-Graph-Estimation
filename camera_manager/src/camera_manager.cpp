@@ -239,6 +239,7 @@ void CameraManager::synchronizedMonocularCallback(
 
 Feature CameraManager::MonocularFeatureExtractor(const Frame& frame) {
   // TODO: SIFT is slow but accurate than ORB, may need to switch to ORB for real-time applications.
+  //TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
   cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
   Feature feature;
   feature.frameID = frame.frameID;
@@ -253,6 +254,7 @@ Feature CameraManager::MonocularFeatureExtractor(const Frame& frame) {
 }
 
 StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, const Frame& rightFrame) {
+  //TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
   StereoFeature stereoFeature;
   stereoFeature.frameID = leftFrame.frameID;
 
