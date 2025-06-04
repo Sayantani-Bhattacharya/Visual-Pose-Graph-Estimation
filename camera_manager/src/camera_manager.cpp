@@ -469,6 +469,8 @@ void CameraManager::initializePoseGraph() {
   // TODO: Can work with other options g20/GTSAM/Ceres.
   // Nodes are camera poses, edges are relative transformations between them.
 
+  RCLCPP_INFO(this->get_logger(), "Initializing Pose Graph");
+  optimizer = std::make_unique<g2o::SparseOptimizer>();
   // Set up the linear solver and block solver
   auto linearSolver = std::make_unique<g2o::LinearSolverCSparse<g2o::BlockSolverX::PoseMatrixType>>();
   auto blockSolver = std::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
@@ -544,6 +546,8 @@ void CameraManager::optimizePoseGraph() {
     // And updates the current pose estimate based on the optimized graph.: this can be optional, config variable based.
 
     std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+    RCLCPP_INFO(this->get_logger(), "Optimizing Pose Graph");
+
     int maxIterations = 20;
     optimizer->initializeOptimization();
     int result = optimizer->optimize(maxIterations);
