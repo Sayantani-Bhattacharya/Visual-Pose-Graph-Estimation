@@ -18,10 +18,14 @@ find_package(image_transport REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(message_filters REQUIRED)
+find_package(g2o REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 include_directories(
   include/camera_manager
   ${OpenCV_INCLUDE_DIRS}
+  ${g2o_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
 )
 
 # Camera Manager Node
@@ -36,7 +40,15 @@ ament_target_dependencies(camera_manager
   tf2_ros
   message_filters
 )
-target_link_libraries(camera_manager ${OpenCV_LIBRARIES})
+
+target_link_libraries(camera_manager
+  ${OpenCV_LIBRARIES}
+  g2o_core
+  g2o_stuff
+  g2o_types_slam3d
+  g2o_solver_csparse
+  g2o_solver_dense
+)
 
 install(TARGETS
   camera_manager
