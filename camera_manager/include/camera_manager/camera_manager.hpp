@@ -9,8 +9,9 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
-#include <geometry_msgs/msg/Quaternion.hpp>
+#include <geometry_msgs/msg/quaternion.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 #include "tf2_ros/transform_broadcaster.h"
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
@@ -30,15 +31,27 @@ using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMs
 using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
 
 
-geometry_msgs::msg::Quaternion toQuaternion(double roll, double pitch, double yaw) {
-  tf2::Quaternion q;
-  q.setRPY(roll, pitch, yaw);
-  geometry_msgs::msg::Quaternion quat_msg;
-  quat_msg.x = q.x();
-  quat_msg.y = q.y();
-  quat_msg.z = q.z();
-  quat_msg.w = q.w();
-  return quat_msg;
+geometry_msgs::msg::Quaternion e2q(double roll, double pitch, double yaw) {
+  geometry_msgs::msg::Quaternion q;
+  q.x = sin(roll / 2) * cos(pitch / 2) * cos(yaw / 2) - cos(roll / 2) * sin(pitch / 2) * sin(yaw / 2);
+  q.y = cos(roll / 2) * sin(pitch / 2) * cos(yaw / 2) + sin(roll / 2) * cos(pitch / 2) * sin(yaw / 2);
+  q.z = cos(roll / 2) * cos(pitch / 2) * sin(yaw / 2) - sin(roll / 2) * sin(pitch / 2) * cos(yaw / 2);
+  q.w = cos(roll / 2) * cos(pitch / 2) * cos(yaw / 2) + sin(roll / 2) * sin(pitch / 2) * sin(yaw / 2);
+  // Normalize the quaternion to ensure it is a valid rotation
+  double norm = sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+  if (norm > 0) {
+    q.x /= norm;
+    q.y /= norm;
+    q.z /= norm;
+    q.w /= norm;
+  } else {
+    // If norm is zero, return a default quaternion
+    q.x = 0.0;
+    q.y = 0.0;
+    q.z = 0.0;
+    q.w = 1.0; // Default quaternion representing no rotation
+  }
+  return q;
 }
 
 struct CameraIntrinsics {
