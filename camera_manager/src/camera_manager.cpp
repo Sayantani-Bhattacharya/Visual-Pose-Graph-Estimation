@@ -468,7 +468,6 @@ void CameraManager::UpdateCameraPoseVisualization() {
 void CameraManager::initializePoseGraph() {
   // TODO: Can work with other options g20/GTSAM/Ceres.
   // Nodes are camera poses, edges are relative transformations between them.
-
   RCLCPP_INFO(this->get_logger(), "Initializing Pose Graph");
   optimizer = std::make_unique<g2o::SparseOptimizer>();
   // Set up the linear solver and block solver
@@ -477,7 +476,6 @@ void CameraManager::initializePoseGraph() {
   auto solver = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
   optimizer->setAlgorithm(solver);
   optimizer->setVerbose(false); // Set true for debug output
-
 }
 
 void CameraManager::addNode(int frameID, const cv::Mat& currentPose) {
@@ -605,9 +603,9 @@ void CameraManager::visulizePoseGraph()
     marker.pose.orientation.y = q.y();
     marker.pose.orientation.z = q.z();
     marker.pose.orientation.w = q.w();
-    marker.scale.x = 0.1; // Sphere radius
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
+    marker.scale.x = 0.06; // Sphere radius
+    marker.scale.y = 0.06;
+    marker.scale.z = 0.06;
     marker.color.r = 0.0f;
     marker.color.g = 1.0f; // Green for vertices
     marker.color.b = 0.0f;
