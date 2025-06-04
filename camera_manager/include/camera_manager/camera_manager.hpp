@@ -9,6 +9,7 @@
 #include <cv_bridge/cv_bridge.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/Quaternion.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include "tf2_ros/transform_broadcaster.h"
 #include <message_filters/subscriber.h>
@@ -19,8 +20,6 @@
 #include <vector>
 #include <map>
 
-#include "feature_extractor.hpp"
-
 using Header = std_msgs::msg::Header;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Path = nav_msgs::msg::Path;
@@ -30,12 +29,54 @@ using CameraInfoMsg = sensor_msgs::msg::CameraInfo;
 using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg, ImageMsg, CameraInfoMsg>;
 using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
 
+
+geometry_msgs::msg::Quaternion toQuaternion(double roll, double pitch, double yaw) {
+  tf2::Quaternion q;
+  q.setRPY(roll, pitch, yaw);
+  geometry_msgs::msg::Quaternion quat_msg;
+  quat_msg.x = q.x();
+  quat_msg.y = q.y();
+  quat_msg.z = q.z();
+  quat_msg.w = q.w();
+  return quat_msg;
+}
+
+struct CameraIntrinsics {
+  cv::Mat K; // Camera intrinsic matrix: focal length, principal point..
+  cv::Mat D; // Camera distortion coefficients
+};
+
+struct Frame {
+  int frameID;
+  rclcpp::Time stamp;
+  cv::Mat image;
+  std::vector<cv::KeyPoint> keypoints;
+  CameraIntrinsics intrinsics; // Camera intrinsics
+  cv::Mat descriptors; // SIFT/ORB descriptors
+};
+
+struct Feature {
+  int frameID;
+  std::vector<cv::KeyPoint> keypoints;
+  cv::Mat descriptors; // SIFT/ORB descriptors
+};
+
+struct StereoFeature {
+  int frameID;
+  std::vector<cv::KeyPoint> leftKeypoints;
+  std::vector<cv::KeyPoint> rightKeypoints;
+  cv::Mat leftDescriptors; // SIFT/ORB descriptors for left image
+  cv::Mat rightDescriptors; // SIFT/ORB descriptors for right image
+};
+
 struct Edge {
   int fromID;
   int toID;
   cv::Mat relativePose; // 4x4 SE(3) Transformation matrix T_from_to
   cv::Mat covariance; // Covariance of the relative pose
 };
+
+
 
 class CameraManager : public rclcpp::Node {
 public:

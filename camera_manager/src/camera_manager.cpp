@@ -72,10 +72,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
   worldTransform.transform.translation.x = 0.0;
   worldTransform.transform.translation.y = 0.0;
   worldTransform.transform.translation.z = 0.0;
-  worldTransform.transform.rotation.x = 0.0;
-  worldTransform.transform.rotation.y = 0.0;
-  worldTransform.transform.rotation.z = 0.0;
-  worldTransform.transform.rotation.w = 1.0;
+  worldTransform.transform.rotation = toQuaternion(0.0, 0.0, 0.0);
   this->tfBroadcaster->sendTransform(worldTransform);
 
   // Setup timer for pose-graph management and visualization
@@ -240,23 +237,31 @@ void CameraManager::synchronizedMonocularCallback(
 }
 
 Feature CameraManager::MonocularFeatureExtractor(const Frame& frame) {
-  // TODO: SIFT is slow but accurate than ORB, may need to switch to ORB for real-time applications.
-  // TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
-  cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
   Feature feature;
   feature.frameID = frame.frameID;
   if (frame.image.empty()) {
     RCLCPP_WARN(this->get_logger(), "[FeatureExtractor] Received empty image for frame ID %d", frame.frameID);
     return feature;
   }
-  extractor->detectAndCompute(
-    frame.image, cv::noArray(), feature.keypoints, feature.descriptors
-  );
+  // cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+  if (this->featureExtractionMethod == "ORB") {
+    cv::Ptr<cv::Feature2D> extractor = cv::ORB::create();
+    extractor->detectAndCompute(frame.image, cv::noArray(), feature.keypoints, feature.descriptors);
+  } else if (this->featureExtractionMethod == "SURF") {
+    cv::Ptr<cv::Feature2D> extractor = cv::xfeatures2d::SURF::create();
+    extractor->detectAndCompute(frame.image, cv::noArray(), feature.keypoints, feature.descriptors);
+  } else if (this->featureExtractionMethod == "SIFT") {
+    // Default to SIFT if no valid method is specified
+    cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+    extractor->detectAndCompute(frame.image, cv::noArray(), feature.keypoints, feature.descriptors);
+  } else {
+    RCLCPP_WARN(this->get_logger(), "[FeatureExtractor] Unsupported feature extraction method: %s", this->featureExtractionMethod.c_str());
+    return feature; // Return empty feature
+  }
   return feature;
 }
 
 StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, const Frame& rightFrame) {
-  //TODO: Parameterize the feature extractor (SIFT, ORB, etc.) and descriptor matcher
   StereoFeature stereoFeature;
   stereoFeature.frameID = leftFrame.frameID;
 
@@ -264,12 +269,23 @@ StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, cons
     RCLCPP_WARN(this->get_logger(), "[StereoFeatureExtractor] Received empty images for frame ID %d", leftFrame.frameID);
     return stereoFeature;
   }
-
-  cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
-  extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
-  extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
-
-  return stereoFeature;
+  if (this->featureExtractionMethod == "ORB") {
+    cv::Ptr<cv::Feature2D> extractor = cv::ORB::create();
+    extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
+    extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
+    return stereoFeature;
+  } else if (this->featureExtractionMethod == "SURF") {
+    cv::Ptr<cv::Feature2D> extractor = cv::xfeatures2d::SURF::create();
+    extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
+    extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
+    return stereoFeature;
+  } else if (this->featureExtractionMethod == "SIFT") {
+    // Default to SIFT if no valid method is specified
+    return this->extractSIFTFeatures(leftFrame, rightFrame);
+  } else {
+    RCLCPP_WARN(this->get_logger(), "[StereoFeatureExtractor] Unsupported feature extraction method: %s", this->featureExtractionMethod.c_str());
+    return stereoFeature; // Return empty stereo feature
+  }
 }
 
 Edge CameraManager::MonocularCameraPoseEstimation(const Feature& newFeature) {
