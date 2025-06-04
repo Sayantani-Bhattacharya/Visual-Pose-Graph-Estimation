@@ -29,6 +29,10 @@
 #include <mutex>
 #include <queue>
 #include <vector>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 #include <map>
 
 
@@ -37,6 +41,7 @@ using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Path = nav_msgs::msg::Path;
 using PoseStamped = geometry_msgs::msg::PoseStamped;
 using ImageMsg = sensor_msgs::msg::Image;
+using MarkerArray = visualization_msgs::msg::MarkerArray;
 using CameraInfoMsg = sensor_msgs::msg::CameraInfo;
 using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg, ImageMsg, CameraInfoMsg>;
 using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
@@ -91,6 +96,7 @@ public:
   void addNode(int frameID, const cv::Mat& currentPose); 
   void optimizePoseGraph();
   Edge LoopClosureDetector();
+  void visulizePoseGraph();
 
 private:
   // Timer for camera image processing
@@ -112,6 +118,9 @@ private:
 
   // Publisher for images with features
   rclcpp::Publisher<ImageMsg>::SharedPtr featureImagePub;
+
+  // Publisher for pose-graph visualization markers
+  rclcpp::Publisher<MarkerArray>::SharedPtr poseGraphVizPub;
 
   // Transform Broadcaster for publishing camera poses
   std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;

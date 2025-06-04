@@ -20,6 +20,8 @@ find_package(tf2_ros REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(g2o REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 include_directories(
   include/camera_manager
@@ -39,6 +41,8 @@ ament_target_dependencies(camera_manager
   nav_msgs
   tf2_ros
   message_filters
+  geometry_msgs
+  visualization_msgs
 )
 
 target_link_libraries(camera_manager

@@ -19,6 +19,9 @@ CameraManager::CameraManager() : Node("camera_manager") {
   // Setup Image publisher for feature visualization
   this->featureImagePub = this->create_publisher<ImageMsg>("camera/feature_image", 10);
 
+  // Setup Pose-Graph marker publisher.
+  this->poseGraphVizPub = this->create_publisher<MarkerArray>("pose_graph_markers", 10);
+
   // Setup tf broadcaster
   this->tfBroadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -170,6 +173,8 @@ void CameraManager::synchronizedStereoCallback(
     this->addEdge(odomEdge);
     // Visualize the current camera pose
     this->UpdateCameraPoseVisualization();
+    // Visualize the pose graph
+    this->visulizePoseGraph();
   }
 
   // 4. Loop-Closure Detection
@@ -241,6 +246,8 @@ void CameraManager::synchronizedMonocularCallback(
     this->addEdge(odomEdge);
     // Visualize the current camera pose
     this->UpdateCameraPoseVisualization();
+    // Visualize the pose graph
+    this->visulizePoseGraph();
   }
 
   // 4. Loop-Closure Detection
@@ -565,6 +572,81 @@ void CameraManager::optimizePoseGraph() {
         }
     }
     RCLCPP_INFO(this->get_logger(), "Pose graph optimization is not yet implemented.");
+}
+
+void CameraManager::visulizePoseGraph()
+{
+  // Use the Global Pose Graph [optimizer], the nodes as point markers and edge as line markers.
+  // Publish all the markers in a single marker array.
+  MarkerArray poseGraphMarkers;
+  poseGraphMarkers.markers.clear();
+  std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+  for (const auto& vertexPair : this->optimizer->vertices()) {
+    int id = vertexPair.first;
+    auto* v = dynamic_cast<g2o::VertexSE3*>(vertexPair.second);
+    if (!v) continue;
+
+    // Create a marker for the vertex
+    visualization_msgs::msg::Marker marker;
+    marker.header.frame_id = "world";
+    marker.header.stamp = this->now();
+    marker.id = id;
+    marker.type = visualization_msgs::msg::Marker::SPHERE;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.position.x = v->estimate().translation().x();
+    marker.pose.position.y = v->estimate().translation().y();
+    marker.pose.position.z = v->estimate().translation().z();
+    Eigen::Quaterniond q(v->estimate().rotation());
+    marker.pose.orientation.x = q.x();
+    marker.pose.orientation.y = q.y();
+    marker.pose.orientation.z = q.z();
+    marker.pose.orientation.w = q.w();
+    marker.scale.x = 0.1; // Sphere radius
+    marker.scale.y = 0.1;
+    marker.scale.z = 0.1;
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f; // Green for vertices
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0f; // Fully opaque
+    poseGraphMarkers.markers.push_back(marker);
+  }
+  // Create edges between this vertex and all connected vertices
+  for (const auto& edgePtr : this->optimizer->edges()) {
+    auto* edge = dynamic_cast<g2o::EdgeSE3*>(edgePtr);
+    if (!edge) continue;
+
+    auto* v1 = dynamic_cast<g2o::VertexSE3*>(edge->vertices()[0]);
+    auto* v2 = dynamic_cast<g2o::VertexSE3*>(edge->vertices()[1]);
+    if (!v1 || !v2) continue;
+
+    geometry_msgs::msg::Point startPoint, endPoint;
+    startPoint.x = v1->estimate().translation().x();
+    startPoint.y = v1->estimate().translation().y();
+    startPoint.z = v1->estimate().translation().z();
+
+    endPoint.x = v2->estimate().translation().x();
+    endPoint.y = v2->estimate().translation().y();
+    endPoint.z = v2->estimate().translation().z();
+
+    visualization_msgs::msg::Marker lineMarker;
+    lineMarker.header.frame_id = "world";
+    lineMarker.header.stamp = this->now();
+    lineMarker.id = v1->id() * 10000 + v2->id(); // Unique ID for the edge
+    lineMarker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    lineMarker.action = visualization_msgs::msg::Marker::ADD;
+    lineMarker.pose.orientation.w = 1.0;
+    lineMarker.scale.x = 0.02;
+    lineMarker.color.r = 1.0f;
+    lineMarker.color.g = 0.0f;
+    lineMarker.color.b = 0.0f;
+    lineMarker.color.a = 1.0f;
+    lineMarker.points.push_back(startPoint);
+    lineMarker.points.push_back(endPoint);
+
+    poseGraphMarkers.markers.push_back(lineMarker);
+  }
+
+  this->poseGraphVizPub->publish(poseGraphMarkers);
 }
 
 Edge CameraManager::LoopClosureDetector() {
