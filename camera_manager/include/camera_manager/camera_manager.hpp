@@ -88,6 +88,8 @@ public:
   void UpdateCameraPoseVisualization();
   void initializePoseGraph();
   void addEdge(const Edge& edge);
+  void addNode(int frameID, const cv::Mat& currentPose); 
+  void optimizePoseGraph();
   Edge LoopClosureDetector();
 
 private:
@@ -134,7 +136,7 @@ private:
   CameraIntrinsics leftCameraIntrinsics;
   CameraIntrinsics rightCameraIntrinsics;
 
-  // Configuration parameters
+  // Configuration Parameters
   float timerFreq; // Timer frequency [Hz]
   bool useStereoCamera; // Use stereo camera or monocular camera
   double stereoBaseline; // Baseline distance between stereo cameras [m]
@@ -147,6 +149,10 @@ private:
   // Pose Estimate
   cv::Mat currentPose; // Current camera pose estimate [SE(3)]
   std::mutex poseMutex; // Mutex for currentPose estimate
+
+  // Graph Parameters.
+  std::unique_ptr<g2o::SparseOptimizer> optimizer; // The main Pose-Graph
+  std::mutex poseGraphMutex; // Mutex for pose-graph operations
 
 };
 #endif // !CAMERA_MANAGER_HPP
