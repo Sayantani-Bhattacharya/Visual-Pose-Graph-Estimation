@@ -24,6 +24,9 @@ CameraManager::CameraManager() : Node("camera_manager") {
   // Setup Image publisher for feature visualization
   this->featureImagePub = this->create_publisher<ImageMsg>("camera/feature_image", 10);
 
+  // Setup Pose-Graph marker publisher.
+  this->poseGraphVizPub = this->create_publisher<MarkerArray>("pose_graph_markers", 10);
+
   // Setup tf broadcaster
   this->tfBroadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
@@ -109,6 +112,11 @@ CameraManager::CameraManager() : Node("camera_manager") {
 
 void CameraManager::timerCallback() {
 
+  // Call the pose graph opti - figure the frequency of this timer
+  // Call after loop closure detection or after every N frames/
+  // optimizePoseGraph()
+
+
 }
 
 void CameraManager::synchronizedStereoCallback(
@@ -178,14 +186,19 @@ void CameraManager::synchronizedStereoCallback(
 
   // 3. Pose-Graph Management
   if (!odomEdge.relativePose.empty()) {
-    this->addEdge(odomEdge);
     // Update current pose estimate
     {
       std::lock_guard<std::mutex> lock(this->poseMutex);
       this->currentPose = odomEdge.relativePose * this->currentPose;
+      // TODO: Test if this is fine.
+      // frame id for left and right should be the same: may need to make a non-deep copy.
+      this->addNode(currentLeftFrame.frameID, this->currentPose);
     }
+    this->addEdge(odomEdge);
     // Visualize the current camera pose
     this->UpdateCameraPoseVisualization();
+    // Visualize the pose graph
+    this->visulizePoseGraph();
   }
 
   // 4. Loop-Closure Detection
@@ -246,14 +259,19 @@ void CameraManager::synchronizedMonocularCallback(
 
   // 3. Pose-Graph Management
   if (!odomEdge.relativePose.empty()) {
-    this->addEdge(odomEdge);
-    // Update current pose estimate
     {
       std::lock_guard<std::mutex> lock(this->poseMutex);
       this->currentPose = odomEdge.relativePose * this->currentPose;
+      // TODO: Test if this is fine.
+      // frame id for left and right should be the same.
+      this->addNode(currentFrame.frameID, this->currentPose);
     }
+    // Update current pose estimate
+    this->addEdge(odomEdge);
     // Visualize the current camera pose
     this->UpdateCameraPoseVisualization();
+    // Visualize the pose graph
+    this->visulizePoseGraph();
   }
 
   // 4. Loop-Closure Detection
@@ -488,12 +506,189 @@ void CameraManager::UpdateCameraPoseVisualization() {
 }
 
 void CameraManager::initializePoseGraph() {
-  // TODO: Initialize a graph using g20/GTSAM/Ceres
+  // TODO: Can work with other options g20/GTSAM/Ceres.
   // Nodes are camera poses, edges are relative transformations between them.
+  RCLCPP_INFO(this->get_logger(), "Initializing Pose Graph");
+  optimizer = std::make_unique<g2o::SparseOptimizer>();
+  // Set up the linear solver and block solver
+  auto linearSolver = std::make_unique<g2o::LinearSolverCSparse<g2o::BlockSolverX::PoseMatrixType>>();
+  auto blockSolver = std::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
+  auto solver = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+  optimizer->setAlgorithm(solver);
+  optimizer->setVerbose(false); // Set true for debug output
+}
+
+void CameraManager::addNode(int frameID, const cv::Mat& currentPose) {
+  std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+
+  // Check if node already exists
+  if (optimizer->vertex(frameID) != nullptr) return;
+
+  // Create a new SE3 vertex
+  auto* v = new g2o::VertexSE3();
+  v->setId(frameID);
+
+  // Convert cv::Mat (4x4) to Eigen::Isometry3d for initial estimate
+  Eigen::Matrix4d mat = Eigen::Matrix4d::Identity();
+  if (!currentPose.empty() && currentPose.rows == 4 && currentPose.cols == 4) {
+    for (int r = 0; r < 4; ++r)
+      for (int c = 0; c < 4; ++c)
+        mat(r, c) = currentPose.at<double>(r, c);
+  }
+  Eigen::Isometry3d pose(mat);
+  v->setEstimate(pose);
+
+  // Fix the first node to anchor the graph
+  if (frameID == 0) v->setFixed(true);
+
+  optimizer->addVertex(v);
 }
 
 void CameraManager::addEdge(const Edge& edge) {
-  // TODO: Add the edge to the pose graph
+  if (edge.relativePose.empty() || edge.fromID == edge.toID) {
+    RCLCPP_WARN(this->get_logger(), "Invalid edge, skipping addition to pose graph.");
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+
+  // Create SE3 edge
+  auto* e = new g2o::EdgeSE3();
+  e->setVertex(0, optimizer->vertex(edge.fromID));
+  e->setVertex(1, optimizer->vertex(edge.toID));
+
+  // Convert cv::Mat (4x4) to Eigen::Isometry3d
+  Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+  for (int r = 0; r < 4; ++r)
+    for (int c = 0; c < 4; ++c)
+      T(r, c) = edge.relativePose.at<double>(r, c);
+  Eigen::Isometry3d relPose(T);
+
+  e->setMeasurement(relPose);
+
+  // TODO: Set information matrix (identity for now, tune as needed)
+  e->setInformation(Eigen::Matrix<double, 6, 6>::Identity());
+
+  optimizer->addEdge(e);
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Added edge to pose graph: from %d to %d",
+    edge.fromID, edge.toID
+  );
+}
+
+void CameraManager::optimizePoseGraph() {
+    // TODO: Need to call this in timer.
+    // This function optimizes the graph to refine the camera poses in least squares sense.
+    // And updates the current pose estimate based on the optimized graph.: this can be optional, config variable based.
+
+    std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+    RCLCPP_INFO(this->get_logger(), "Optimizing Pose Graph");
+
+    int maxIterations = 20;
+    optimizer->initializeOptimization();
+    int result = optimizer->optimize(maxIterations);
+
+    if (result > 0) {
+        RCLCPP_INFO(this->get_logger(), "Pose graph optimization finished successfully.");
+    } else {
+        RCLCPP_WARN(this->get_logger(), "Pose graph optimization failed or did not converge.");
+    }
+
+    // Optionally update currentPose from the last vertex
+    if (!optimizer->vertices().empty()) {
+        int lastId = optimizer->vertices().begin()->first;
+        auto* v = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(lastId));
+        if (v) {
+            Eigen::Isometry3d est = v->estimate();
+            Eigen::Matrix4d mat = est.matrix();
+            cv::Mat cvPose(4, 4, CV_64F);
+            for (int r = 0; r < 4; ++r)
+                for (int c = 0; c < 4; ++c)
+                    cvPose.at<double>(r, c) = mat(r, c);
+            {
+                std::lock_guard<std::mutex> poseLock(this->poseMutex);
+                this->currentPose = cvPose.clone();
+            }
+        }
+    }
+    RCLCPP_INFO(this->get_logger(), "Pose graph optimization is not yet implemented.");
+}
+
+void CameraManager::visulizePoseGraph()
+{
+  // Use the Global Pose Graph [optimizer], the nodes as point markers and edge as line markers.
+  // Publish all the markers in a single marker array.
+  MarkerArray poseGraphMarkers;
+  poseGraphMarkers.markers.clear();
+  std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+  for (const auto& vertexPair : this->optimizer->vertices()) {
+    int id = vertexPair.first;
+    auto* v = dynamic_cast<g2o::VertexSE3*>(vertexPair.second);
+    if (!v) continue;
+
+    // Create a marker for the vertex
+    visualization_msgs::msg::Marker marker;
+    marker.header.frame_id = "world";
+    marker.header.stamp = this->now();
+    marker.id = id;
+    marker.type = visualization_msgs::msg::Marker::SPHERE;
+    marker.action = visualization_msgs::msg::Marker::ADD;
+    marker.pose.position.x = v->estimate().translation().x();
+    marker.pose.position.y = v->estimate().translation().y();
+    marker.pose.position.z = v->estimate().translation().z();
+    Eigen::Quaterniond q(v->estimate().rotation());
+    marker.pose.orientation.x = q.x();
+    marker.pose.orientation.y = q.y();
+    marker.pose.orientation.z = q.z();
+    marker.pose.orientation.w = q.w();
+    marker.scale.x = 0.06; // Sphere radius
+    marker.scale.y = 0.06;
+    marker.scale.z = 0.06;
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f; // Green for vertices
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0f; // Fully opaque
+    poseGraphMarkers.markers.push_back(marker);
+  }
+  // Create edges between this vertex and all connected vertices
+  for (const auto& edgePtr : this->optimizer->edges()) {
+    auto* edge = dynamic_cast<g2o::EdgeSE3*>(edgePtr);
+    if (!edge) continue;
+
+    auto* v1 = dynamic_cast<g2o::VertexSE3*>(edge->vertices()[0]);
+    auto* v2 = dynamic_cast<g2o::VertexSE3*>(edge->vertices()[1]);
+    if (!v1 || !v2) continue;
+
+    geometry_msgs::msg::Point startPoint, endPoint;
+    startPoint.x = v1->estimate().translation().x();
+    startPoint.y = v1->estimate().translation().y();
+    startPoint.z = v1->estimate().translation().z();
+
+    endPoint.x = v2->estimate().translation().x();
+    endPoint.y = v2->estimate().translation().y();
+    endPoint.z = v2->estimate().translation().z();
+
+    visualization_msgs::msg::Marker lineMarker;
+    lineMarker.header.frame_id = "world";
+    lineMarker.header.stamp = this->now();
+    lineMarker.id = v1->id() * 10000 + v2->id(); // Unique ID for the edge
+    lineMarker.type = visualization_msgs::msg::Marker::LINE_STRIP;
+    lineMarker.action = visualization_msgs::msg::Marker::ADD;
+    lineMarker.pose.orientation.w = 1.0;
+    lineMarker.scale.x = 0.02;
+    lineMarker.color.r = 1.0f;
+    lineMarker.color.g = 0.0f;
+    lineMarker.color.b = 0.0f;
+    lineMarker.color.a = 1.0f;
+    lineMarker.points.push_back(startPoint);
+    lineMarker.points.push_back(endPoint);
+
+    poseGraphMarkers.markers.push_back(lineMarker);
+  }
+
+  this->poseGraphVizPub->publish(poseGraphMarkers);
 }
 
 Edge CameraManager::LoopClosureDetector() {

@@ -16,16 +16,34 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/core/block_solver.h>
+#include <g2o/solvers/dense/linear_solver_dense.h>
+#include <g2o/solvers/csparse/linear_solver_csparse.h>
+#include <g2o/types/slam3d/types_slam3d.h>
+#include <g2o/solvers/csparse/linear_solver_csparse.h> // may not be needed
+#include <g2o/core/block_solver.h>       // may not be needed
+#include <g2o/core/optimization_algorithm_levenberg.h>  
+#include <g2o/types/slam3d/vertex_se3.h>
+#include <g2o/types/slam3d/edge_se3.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <Eigen/Geometry>
 #include <mutex>
 #include <queue>
 #include <vector>
+#include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 #include <map>
+
 
 using Header = std_msgs::msg::Header;
 using CameraInfo = sensor_msgs::msg::CameraInfo;
 using Path = nav_msgs::msg::Path;
 using PoseStamped = geometry_msgs::msg::PoseStamped;
 using ImageMsg = sensor_msgs::msg::Image;
+using MarkerArray = visualization_msgs::msg::MarkerArray;
 using CameraInfoMsg = sensor_msgs::msg::CameraInfo;
 using StereoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg, ImageMsg, CameraInfoMsg>;
 using MonoSyncPolicy = message_filters::sync_policies::ApproximateTime<ImageMsg, CameraInfoMsg>;
@@ -103,7 +121,10 @@ public:
   void UpdateCameraPoseVisualization();
   void initializePoseGraph();
   void addEdge(const Edge& edge);
+  void addNode(int frameID, const cv::Mat& currentPose); 
+  void optimizePoseGraph();
   Edge LoopClosureDetector();
+  void visulizePoseGraph();
 
 private:
   // Timer for camera image processing
@@ -125,6 +146,9 @@ private:
 
   // Publisher for images with features
   rclcpp::Publisher<ImageMsg>::SharedPtr featureImagePub;
+
+  // Publisher for pose-graph visualization markers
+  rclcpp::Publisher<MarkerArray>::SharedPtr poseGraphVizPub;
 
   // Transform Broadcaster for publishing camera poses
   std::shared_ptr<tf2_ros::TransformBroadcaster> tfBroadcaster;
@@ -149,7 +173,7 @@ private:
   CameraIntrinsics leftCameraIntrinsics;
   CameraIntrinsics rightCameraIntrinsics;
 
-  // Configuration parameters
+  // Configuration Parameters
   float timerFreq; // Timer frequency [Hz]
   bool useStereoCamera; // Use stereo camera or monocular camera
   double stereoBaseline; // Baseline distance between stereo cameras [m]
@@ -163,6 +187,10 @@ private:
   // Pose Estimate
   cv::Mat currentPose; // Current camera pose estimate [SE(3)]
   std::mutex poseMutex; // Mutex for currentPose estimate
+
+  // Graph Parameters.
+  std::unique_ptr<g2o::SparseOptimizer> optimizer; // The main Pose-Graph
+  std::mutex poseGraphMutex; // Mutex for pose-graph operations
 
 };
 #endif // !CAMERA_MANAGER_HPP
