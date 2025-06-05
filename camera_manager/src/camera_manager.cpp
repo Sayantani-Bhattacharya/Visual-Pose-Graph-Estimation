@@ -78,7 +78,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
   baseLinkTransform.header.stamp = this->now();
   baseLinkTransform.header.frame_id = "world";
   baseLinkTransform.child_frame_id = "odom";
-  baseLinkTransform.transform.translation.x = 1.0;
+  baseLinkTransform.transform.translation.x = 0.0;
   baseLinkTransform.transform.translation.y = 0.0;
   baseLinkTransform.transform.translation.z = 0.0;
   tf2::Quaternion q;
@@ -316,11 +316,11 @@ StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, cons
     return stereoFeature;
   } else if (this->featureExtractionMethod == "SIFT") {
     cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create(
-      100, // nfeatures
+      0, // nfeatures
       3, // nOctaveLayers
-      0.1, // contrastThreshold
+      0.04, // contrastThreshold
       10, // edgeThreshold
-      2.0 // sigma
+      1.6 // sigma
     );
     extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
     extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
@@ -443,8 +443,8 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
   const int iterationsCount = 100; // Number of RANSAC iterations
   const float reprojectionError = 8.0; // Maximum reprojection error
   const double confidence = 0.99; // Confidence level for RANSAC
-  const int flags = cv::SOLVEPNP_ITERATIVE; // Use iterative method for PnP
-  cv::solvePnPRansac(
+  const int flags = cv::SOLVEPNP_EPNP;
+  bool success = cv::solvePnPRansac(
     pts3d_prev, // 3D points in previous frame
     pts2d_curr, // 2D points in current frame
     K, D, // Camera intrinsic parameters
@@ -453,6 +453,9 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
     inliers, // Output inliers mask
     flags
   );
+  if (!success) {
+    RCLCPP_WARN(this->get_logger(), "[StereoCameraPoseEstimation] PnP failed for frame ID %d", newFeature.frameID);
+  }
 
   // Convert rvec to rotation matrix
   cv::Mat R;
