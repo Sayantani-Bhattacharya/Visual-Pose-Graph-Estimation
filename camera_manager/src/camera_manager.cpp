@@ -90,9 +90,16 @@ void CameraManager::timerCallback() {
 
   // Call the pose graph opti - figure the frequency of this timer
   // Call after loop closure detection or after every N frames/
-  // optimizePoseGraph()
 
-
+  if (iterations > 100)
+  {
+    this->optimizePoseGraph();
+    iterations = 0;
+  }
+  else
+  {
+    iterations++;
+  }
 }
 
 void CameraManager::synchronizedStereoCallback(

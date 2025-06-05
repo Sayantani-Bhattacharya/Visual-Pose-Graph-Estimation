@@ -150,6 +150,10 @@ private:
   bool useStereoCamera; // Use stereo camera or monocular camera
   double stereoBaseline; // Baseline distance between stereo cameras [m]
 
+
+
+  int iterations = 0; // Counter for iterations in timer callback
+
   // Internal State (previous frames and features)
   Frame previousFrame; // Previous frame for pose estimation
   StereoFeature previousStereoFeature; // Previous stereo feature for pose estimation
