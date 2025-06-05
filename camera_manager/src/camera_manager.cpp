@@ -7,10 +7,15 @@ CameraManager::CameraManager() : Node("camera_manager") {
   this->timerFreq = this->declare_parameter("timer_frequency", 10.0); // [Hz] Timer for managing pose-graph
   this->useStereoCamera = this->declare_parameter("use_stereo_camera", true); // Use stereo camera by default
   this->stereoBaseline = this->declare_parameter("stereo_baseline", 0.05); // [m] Default baseline distance between stereo cameras
+  this->featureExtractionMethod = this->declare_parameter("feature_extraction_method", "SIFT"); // Default feature extraction method
   // Get params from config file.
   this->timerFreq = this->get_parameter("timer_frequency").as_double();
   this->useStereoCamera = this->get_parameter("use_stereo_camera").as_bool();
   this->stereoBaseline = this->get_parameter("stereo_baseline").as_double();
+  this->featureExtractionMethod = this->get_parameter("feature_extraction_method").as_string();
+
+  RCLCPP_INFO(this->get_logger(), "Using %s camera", this->useStereoCamera ? "stereo" : "monocular");
+  RCLCPP_INFO(this->get_logger(), "Feature extraction method: %s", this->featureExtractionMethod.c_str());
 
   // Setup Path publisher for camera trajectory
   this->cameraEstimatePathPub = this->create_publisher<Path>("camera_trajectory", 10);
@@ -62,10 +67,29 @@ CameraManager::CameraManager() : Node("camera_manager") {
   // Initialize PoseGraph
   this->initializePoseGraph();
 
-  // Publish a static transform at the origin of the world frame
+  // Publish a static transform from the world to odom frame
+  static tf2_ros::StaticTransformBroadcaster staticBroadcaster = tf2_ros::StaticTransformBroadcaster(this);
+
+  // Publish a static transform from world to base_link
+  geometry_msgs::msg::TransformStamped baseLinkTransform;
+  baseLinkTransform.header.stamp = this->now();
+  baseLinkTransform.header.frame_id = "world";
+  baseLinkTransform.child_frame_id = "odom";
+  baseLinkTransform.transform.translation.x = 1.0;
+  baseLinkTransform.transform.translation.y = 0.0;
+  baseLinkTransform.transform.translation.z = 0.0;
+  tf2::Quaternion q;
+  q.setEuler(M_PI / 2.0, 0.0, -M_PI / 2.0);
+  baseLinkTransform.transform.rotation.x = q.x();
+  baseLinkTransform.transform.rotation.y = q.y();
+  baseLinkTransform.transform.rotation.z = q.z();
+  baseLinkTransform.transform.rotation.w = q.w();
+  staticBroadcaster.sendTransform(baseLinkTransform);
+
+  // Publish a transform at the origin of the world frame
   geometry_msgs::msg::TransformStamped worldTransform;
   worldTransform.header.stamp = this->now();
-  worldTransform.header.frame_id = "world";
+  worldTransform.header.frame_id = "odom";
   worldTransform.child_frame_id = "camera_link";
   worldTransform.transform.translation.x = 0.0;
   worldTransform.transform.translation.y = 0.0;
@@ -238,17 +262,24 @@ void CameraManager::synchronizedMonocularCallback(
 }
 
 Feature CameraManager::MonocularFeatureExtractor(const Frame& frame) {
-  // TODO: SIFT is slow but accurate than ORB, may need to switch to ORB for real-time applications.
-  cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
   Feature feature;
   feature.frameID = frame.frameID;
   if (frame.image.empty()) {
     RCLCPP_WARN(this->get_logger(), "[FeatureExtractor] Received empty image for frame ID %d", frame.frameID);
     return feature;
   }
-  extractor->detectAndCompute(
-    frame.image, cv::noArray(), feature.keypoints, feature.descriptors
-  );
+  // cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+  if (this->featureExtractionMethod == "ORB") {
+    cv::Ptr<cv::Feature2D> extractor = cv::ORB::create();
+    extractor->detectAndCompute(frame.image, cv::noArray(), feature.keypoints, feature.descriptors);
+  } else if (this->featureExtractionMethod == "SIFT") {
+    // Default to SIFT if no valid method is specified
+    cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+    extractor->detectAndCompute(frame.image, cv::noArray(), feature.keypoints, feature.descriptors);
+  } else {
+    RCLCPP_WARN(this->get_logger(), "[FeatureExtractor] Unsupported feature extraction method: %s", this->featureExtractionMethod.c_str());
+    return feature; // Return empty feature
+  }
   return feature;
 }
 
@@ -260,12 +291,21 @@ StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, cons
     RCLCPP_WARN(this->get_logger(), "[StereoFeatureExtractor] Received empty images for frame ID %d", leftFrame.frameID);
     return stereoFeature;
   }
-
-  cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
-  extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
-  extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
-
-  return stereoFeature;
+  if (this->featureExtractionMethod == "ORB") {
+    cv::Ptr<cv::Feature2D> extractor = cv::ORB::create();
+    extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
+    extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
+    return stereoFeature;
+  } else if (this->featureExtractionMethod == "SIFT") {
+    // Default to SIFT if no valid method is specified
+    cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+    extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
+    extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
+    return stereoFeature;
+  } else {
+    RCLCPP_WARN(this->get_logger(), "[StereoFeatureExtractor] Unsupported feature extraction method: %s", this->featureExtractionMethod.c_str());
+    return stereoFeature; // Return empty stereo feature
+  }
 }
 
 Edge CameraManager::MonocularCameraPoseEstimation(const Feature& newFeature) {
@@ -435,7 +475,7 @@ void CameraManager::UpdateCameraPoseVisualization() {
   // Broadcast the camera pose as a TF transform
   geometry_msgs::msg::TransformStamped transformStamped;
   transformStamped.header.stamp = this->now();
-  transformStamped.header.frame_id = "world";
+  transformStamped.header.frame_id = "odom";
   transformStamped.child_frame_id = "camera_link";
   transformStamped.transform.translation.x = poseStamped.pose.position.x;
   transformStamped.transform.translation.y = poseStamped.pose.position.y;
