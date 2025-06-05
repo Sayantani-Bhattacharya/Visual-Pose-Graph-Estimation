@@ -423,15 +423,12 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
   const double sbl = this->stereoBaseline; // Stereo baseline
   cv::Mat I3 = cv::Mat::eye(3, 3, CV_64F); // 3x3 identity matrix
 
-  //Build projection matrices for the PREVIOUS stereo pair:
-  //
-  //    Let the left camera pose be the “reference” (identity). Then the right
-  //    camera is translated along +X by “baseline” in that same coord‐frame.
+  // Build projection matrices for the PREVIOUS stereo pair:
+  // Let the left camera pose be the “reference” (identity). Then the right
+  // camera is translated along +X by “baseline” in that same coord‐frame.
   //
   //    P_L = K * [I | 0]
-  //    P_R = K * [I | t],   where t = (-baseline, 0, 0)^T   (depending on your
-  //    coordinate convention, you may use +baseline here; just be consistent).
-  //
+  //    P_R = K * [I | t],   where t = (-baseline, 0, 0)^T
 
   // Left Projection: [I | 0]
   cv::Mat P_L = cv::Mat::zeros(3, 4, CV_64F);
