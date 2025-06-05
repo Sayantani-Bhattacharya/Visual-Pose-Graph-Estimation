@@ -589,11 +589,11 @@ void CameraManager::addEdge(const Edge& edge) {
 
   optimizer->addEdge(e);
 
-  RCLCPP_INFO(
-    this->get_logger(),
-    "Added edge to pose graph: from %d to %d",
-    edge.fromID, edge.toID
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   "Added edge to pose graph: from %d to %d",
+  //   edge.fromID, edge.toID
+  // );
 }
 
 void CameraManager::optimizePoseGraph() {
