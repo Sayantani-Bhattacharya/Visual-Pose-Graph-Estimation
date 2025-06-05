@@ -397,93 +397,42 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
   edge.toID = newFeature.frameID;
 
   // Match descriptors between previous and current left images
-  cv::BFMatcher matcher(cv::NORM_L2);
+  cv::BFMatcher matcher(cv::NORM_L2, true);
   std::vector<cv::DMatch> matches;
   matcher.match(previousStereoFeature.leftDescriptors, newFeature.leftDescriptors, matches);
 
   // Filter good matches 
-  double min_dist = DBL_MAX;
-  for (const auto& m : matches) {
-    min_dist = std::min(min_dist, (double)m.distance);
-  }
+  double min_dist = 100;
+  for (const auto& m : matches) min_dist = std::min(min_dist, (double)m.distance);
   std::vector<cv::DMatch> good_matches;
   for (const auto& m : matches) {
-    if (m.distance <= std::max(2 * min_dist, 30.0)) {
-      good_matches.push_back(m);
-    }
+    if (m.distance <= std::max(2 * min_dist, 30.0)) good_matches.push_back(m);
   }
-  // If too few correspondences, bail out with identity
-  if (good_matches.size() < 5) {
-    edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
-    return edge;
-  }
-
+  // Triangulate 3D points in previous and current frames
+  std::vector<cv::Point3f> pts3d_prev, pts3d_curr;
+  std::vector<cv::Point2f> pts2d_curr;
   const cv::Mat K = this->leftCameraIntrinsics.K; // 3x3 camera matrix
   const cv::Mat D = this->leftCameraIntrinsics.D; // Distortion coefficients
-  const double sbl = this->stereoBaseline; // Stereo baseline
-  cv::Mat I3 = cv::Mat::eye(3, 3, CV_64F); // 3x3 identity matrix
-
-  // Build projection matrices for the PREVIOUS stereo pair:
-  // Let the left camera pose be the “reference” (identity). Then the right
-  // camera is translated along +X by “baseline” in that same coord‐frame.
-  //
-  //    P_L = K * [I | 0]
-  //    P_R = K * [I | t],   where t = (-baseline, 0, 0)^T
-
-  // Left Projection: [I | 0]
-  cv::Mat P_L = cv::Mat::zeros(3, 4, CV_64F);
-  I3.copyTo(P_L(cv::Rect(0, 0, 3, 3))); // Copy identity matrix
-  P_L = K * P_L; // Apply intrinsic matrix
-  // Right Projection: [I | t] with t = (-baseline, 0, 0)^T
-  cv::Mat P_R = cv::Mat::zeros(3, 4, CV_64F);
-  I3.copyTo(P_R(cv::Rect(0, 0, 3, 3))); // Copy identity matrix
-  // translation vector t=(-baseline, 0, 0)^T
-  P_R.at<double>(0, 3) = -sbl; // Set translation in X direction
-  P_R.at<double>(1, 3) = 0;
-  P_R.at<double>(2, 3) = 0;
-  P_R = K * P_R; // Apply intrinsic matrix
-
-  // Collect 2D points from the previous stereo pair, according to good_matches
-  std::vector<cv::Point2f> ptsL_prev, ptsR_prev;
-  // Also collect corresponding 2D point in CURRENT left image for PnP:
-  std::vector<cv::Point2f> pts2d_curr;
-  ptsL_prev.reserve(good_matches.size());
-  ptsR_prev.reserve(good_matches.size());
-  pts2d_curr.reserve(good_matches.size());
-
-  for (size_t i = 0; i < good_matches.size(); ++i) {
-    const cv::DMatch& m = good_matches[i];
-    // Previous‐frame LEFT keypoint  (matched by m.queryIdx)
-    ptsL_prev.emplace_back(previousStereoFeature.leftKeypoints[m.queryIdx].pt);
-    // Previous‐frame RIGHT keypoint (assuming rightKeypoints is index‐aligned
-    // with leftKeypoints; i.e.  leftKeypoints[i] ↔ rightKeypoints[i] )
-    ptsR_prev.emplace_back(previousStereoFeature.rightKeypoints[m.queryIdx].pt);
-    // Current‐frame LEFT keypoint (for 2D side of PnP)
-    pts2d_curr.emplace_back(newFeature.leftKeypoints[m.trainIdx].pt);
-  }
-
-  // Triangulate all “previous‐frame” correspondences in one batch:
-  cv::Mat points4DH; // 4×N, each column = [X, Y, Z, W]^T in homogeneous coords
-  cv::triangulatePoints(P_L, P_R, ptsL_prev, ptsR_prev, points4DH);
-
-  // Convert homogeneous -> Euclidean and fill pts3d_prev
-  std::vector<cv::Point3f> pts3d_prev;
-  pts3d_prev.reserve(points4DH.cols);
-  for (int c = 0; c < points4DH.cols; ++c) {
-    float X = points4DH.at<float>(0, c);
-    float Y = points4DH.at<float>(1, c);
-    float Z = points4DH.at<float>(2, c);
-    float W = points4DH.at<float>(3, c);
-    if (std::abs(W) < 1e-6) { // Avoid division by zero by removing degenerate points
-      continue;
+  for (const auto& m : good_matches) {
+    // Get left/right keypoints for triangulation
+    cv::Point2f kpL_prev = previousStereoFeature.leftKeypoints[m.queryIdx].pt;
+    cv::Point2f kpR_prev = previousStereoFeature.rightKeypoints[m.queryIdx].pt;
+    cv::Point2f kpL_curr = newFeature.leftKeypoints[m.trainIdx].pt;
+    cv::Point2f kpR_curr = newFeature.rightKeypoints[m.trainIdx].pt;
+    // Compute disparity and check validity
+    float disp_prev = kpL_prev.x - kpR_prev.x;
+    float disp_curr = kpL_curr.x - kpR_curr.x;
+    if (disp_prev > 1.0 && disp_curr > 1.0) {
+      // Triangulate previous 3D point
+      float Z_prev = K.at<double>(0, 0) * this->stereoBaseline / disp_prev;
+      float X_prev = (kpL_prev.x - K.at<double>(0, 2)) * Z_prev / K.at<double>(0, 0);
+      float Y_prev = (kpL_prev.y - K.at<double>(1, 2)) * Z_prev / K.at<double>(1, 1);
+      pts3d_prev.emplace_back(X_prev, Y_prev, Z_prev);
+      // Triangulate current 3D point (for PnP, we only need 2D in current frame)
+      pts2d_curr.emplace_back(kpL_curr);
     }
-    pts3d_prev.emplace_back(float(X / W),
-      float(Y / W),
-      float(Z / W));
   }
-
-  // If after removing degenerate points we have too few 3D points:
-  if (pts3d_prev.size() < 5) {
+  if (pts3d_prev.size() < 10) {
     edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
     return edge;
   }
@@ -504,20 +453,17 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
     inliers, // Output inliers mask
     flags
   );
-
-  if (!success || inliers.rows < 4) {
-    RCLCPP_ERROR(this->get_logger(), "[StereoCameraPoseEstimation] PnP failed for frame ID %d", newFeature.frameID);
-    edge.relativePose = cv::Mat::eye(4, 4, CV_64F); // Return identity if PnP fails
-    return edge;
+  if (!success) {
+    RCLCPP_WARN(this->get_logger(), "[StereoCameraPoseEstimation] PnP failed for frame ID %d", newFeature.frameID);
   }
 
   // Convert rvec to rotation matrix
-  cv::Mat Rcurr;
-  cv::Rodrigues(rvec, Rcurr);
+  cv::Mat R;
+  cv::Rodrigues(rvec, R);
 
   // Build 4x4 transformation matrix
   edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
-  Rcurr.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));
+  R.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));
   tvec.copyTo(edge.relativePose(cv::Rect(3, 0, 1, 3)));
   return edge;
 }
