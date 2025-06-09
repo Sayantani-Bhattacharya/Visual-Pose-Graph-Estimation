@@ -78,7 +78,7 @@ CameraManager::CameraManager() : Node("camera_manager") {
   baseLinkTransform.header.stamp = this->now();
   baseLinkTransform.header.frame_id = "world";
   baseLinkTransform.child_frame_id = "odom";
-  baseLinkTransform.transform.translation.x = 1.0;
+  baseLinkTransform.transform.translation.x = 0.0;
   baseLinkTransform.transform.translation.y = 0.0;
   baseLinkTransform.transform.translation.z = 0.0;
   tf2::Quaternion q;
@@ -315,8 +315,13 @@ StereoFeature CameraManager::StereoFeatureExtractor(const Frame& leftFrame, cons
     extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
     return stereoFeature;
   } else if (this->featureExtractionMethod == "SIFT") {
-    // Default to SIFT if no valid method is specified
-    cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create();
+    cv::Ptr<cv::Feature2D> extractor = cv::SIFT::create(
+      0, // nfeatures
+      3, // nOctaveLayers
+      0.04, // contrastThreshold
+      10, // edgeThreshold
+      1.6 // sigma
+    );
     extractor->detectAndCompute(leftFrame.image, cv::noArray(), stereoFeature.leftKeypoints, stereoFeature.leftDescriptors);
     extractor->detectAndCompute(rightFrame.image, cv::noArray(), stereoFeature.rightKeypoints, stereoFeature.rightDescriptors);
     return stereoFeature;
@@ -392,7 +397,7 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
   edge.toID = newFeature.frameID;
 
   // Match descriptors between previous and current left images
-  cv::BFMatcher matcher(cv::NORM_L2);
+  cv::BFMatcher matcher(cv::NORM_L2, true);
   std::vector<cv::DMatch> matches;
   matcher.match(previousStereoFeature.leftDescriptors, newFeature.leftDescriptors, matches);
 
@@ -407,6 +412,7 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
   std::vector<cv::Point3f> pts3d_prev, pts3d_curr;
   std::vector<cv::Point2f> pts2d_curr;
   const cv::Mat K = this->leftCameraIntrinsics.K; // 3x3 camera matrix
+  const cv::Mat D = this->leftCameraIntrinsics.D; // Distortion coefficients
   for (const auto& m : good_matches) {
     // Get left/right keypoints for triangulation
     cv::Point2f kpL_prev = previousStereoFeature.leftKeypoints[m.queryIdx].pt;
@@ -426,18 +432,30 @@ Edge CameraManager::StereoCameraPoseEstimation(const StereoFeature& newFeature) 
       pts2d_curr.emplace_back(kpL_curr);
     }
   }
-  if (pts3d_prev.size() < 5) {
+  if (pts3d_prev.size() < 10) {
     edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
     return edge;
   }
 
   // Solve PnP: to estimate the rotation and translation between the previous and current frames using the 3D-2D correspondences.
   cv::Mat rvec, tvec, inliers;
-  cv::solvePnPRansac(
-    pts3d_prev, pts2d_curr, K,
-    cv::Mat(), rvec, tvec,
-    false, 100, 8.0, 0.99, inliers
+  const bool useExtrinsicGuess = false;
+  const int iterationsCount = 100; // Number of RANSAC iterations
+  const float reprojectionError = 8.0; // Maximum reprojection error
+  const double confidence = 0.99; // Confidence level for RANSAC
+  const int flags = cv::SOLVEPNP_EPNP;
+  bool success = cv::solvePnPRansac(
+    pts3d_prev, // 3D points in previous frame
+    pts2d_curr, // 2D points in current frame
+    K, D, // Camera intrinsic parameters
+    rvec, tvec, // Output rotation and translation vector
+    useExtrinsicGuess, iterationsCount, reprojectionError, confidence, // RANSAC parameters
+    inliers, // Output inliers mask
+    flags
   );
+  if (!success) {
+    RCLCPP_WARN(this->get_logger(), "[StereoCameraPoseEstimation] PnP failed for frame ID %d", newFeature.frameID);
+  }
 
   // Convert rvec to rotation matrix
   cv::Mat R;
@@ -571,53 +589,52 @@ void CameraManager::addEdge(const Edge& edge) {
 
   optimizer->addEdge(e);
 
-  RCLCPP_INFO(
-    this->get_logger(),
-    "Added edge to pose graph: from %d to %d",
-    edge.fromID, edge.toID
-  );
+  // RCLCPP_INFO(
+  //   this->get_logger(),
+  //   "Added edge to pose graph: from %d to %d",
+  //   edge.fromID, edge.toID
+  // );
 }
 
 void CameraManager::optimizePoseGraph() {
-    // TODO: Need to call this in timer.
-    // This function optimizes the graph to refine the camera poses in least squares sense.
-    // And updates the current pose estimate based on the optimized graph.: this can be optional, config variable based.
+  // TODO: Need to call this in timer.
+  // This function optimizes the graph to refine the camera poses in least squares sense.
+  // And updates the current pose estimate based on the optimized graph.: this can be optional, config variable based.
 
-    std::lock_guard<std::mutex> lock(this->poseGraphMutex);
-    RCLCPP_INFO(this->get_logger(), "Optimizing Pose Graph");
+  std::lock_guard<std::mutex> lock(this->poseGraphMutex);
+  RCLCPP_INFO(this->get_logger(), "Optimizing Pose Graph");
 
-    int maxIterations = 20;
-    optimizer->initializeOptimization();
-    int result = optimizer->optimize(maxIterations);
+  int maxIterations = 20;
+  optimizer->initializeOptimization();
+  int result = optimizer->optimize(maxIterations);
 
-    if (result > 0) {
-        RCLCPP_INFO(this->get_logger(), "Pose graph optimization finished successfully.");
-    } else {
-        RCLCPP_WARN(this->get_logger(), "Pose graph optimization failed or did not converge.");
+  if (result > 0) {
+    RCLCPP_INFO(this->get_logger(), "Pose graph optimization finished successfully.");
+  } else {
+    RCLCPP_WARN(this->get_logger(), "Pose graph optimization failed or did not converge.");
+  }
+
+  // Optionally update currentPose from the last vertex
+  if (!optimizer->vertices().empty()) {
+    int lastId = optimizer->vertices().begin()->first;
+    auto* v = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(lastId));
+    if (v) {
+      Eigen::Isometry3d est = v->estimate();
+      Eigen::Matrix4d mat = est.matrix();
+      cv::Mat cvPose(4, 4, CV_64F);
+      for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+          cvPose.at<double>(r, c) = mat(r, c);
+      {
+        std::lock_guard<std::mutex> poseLock(this->poseMutex);
+        this->currentPose = cvPose.clone();
+      }
     }
-
-    // Optionally update currentPose from the last vertex
-    if (!optimizer->vertices().empty()) {
-        int lastId = optimizer->vertices().begin()->first;
-        auto* v = dynamic_cast<g2o::VertexSE3*>(optimizer->vertex(lastId));
-        if (v) {
-            Eigen::Isometry3d est = v->estimate();
-            Eigen::Matrix4d mat = est.matrix();
-            cv::Mat cvPose(4, 4, CV_64F);
-            for (int r = 0; r < 4; ++r)
-                for (int c = 0; c < 4; ++c)
-                    cvPose.at<double>(r, c) = mat(r, c);
-            {
-                std::lock_guard<std::mutex> poseLock(this->poseMutex);
-                this->currentPose = cvPose.clone();
-            }
-        }
-    }
-    RCLCPP_INFO(this->get_logger(), "Pose graph optimization is not yet implemented.");
+  }
+  RCLCPP_INFO(this->get_logger(), "Pose graph optimization is not yet implemented.");
 }
 
-void CameraManager::visulizePoseGraph()
-{
+void CameraManager::visulizePoseGraph() {
   // Use the Global Pose Graph [optimizer], the nodes as point markers and edge as line markers.
   // Publish all the markers in a single marker array.
   MarkerArray poseGraphMarkers;
@@ -630,7 +647,7 @@ void CameraManager::visulizePoseGraph()
 
     // Create a marker for the vertex
     visualization_msgs::msg::Marker marker;
-    marker.header.frame_id = "world";
+    marker.header.frame_id = "odom";
     marker.header.stamp = this->now();
     marker.id = id;
     marker.type = visualization_msgs::msg::Marker::SPHERE;
@@ -671,7 +688,7 @@ void CameraManager::visulizePoseGraph()
     endPoint.z = v2->estimate().translation().z();
 
     visualization_msgs::msg::Marker lineMarker;
-    lineMarker.header.frame_id = "world";
+    lineMarker.header.frame_id = "odom";
     lineMarker.header.stamp = this->now();
     lineMarker.id = v1->id() * 10000 + v2->id(); // Unique ID for the edge
     lineMarker.type = visualization_msgs::msg::Marker::LINE_STRIP;
