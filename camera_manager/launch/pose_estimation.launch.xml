@@ -3,13 +3,8 @@
   <node pkg="camera_manager" exec="camera_manager" name="camera_manager" output="screen">
     <param from="$(find-pkg-share camera_manager)/config/camera_manager_config.yaml"/>
   </node>
-  <node pkg="realsense2_camera" exec="realsense2_camera_node" name="camera" output="screen" >
-    <param name="enable_depth" value="true"/>
-    <param name="enable_color" value="true"/>
-    <param name="depth_module.profile" value="640x480x30"/>
-    <param name="rgb_camera.profile" value="640x480x30"/>
-    <param name="pointcloud.enable" value="true"/>
-    <param name="align_depth.enable" value="true"/>
-  </node>
+  <include file="$(find-pkg-share zed_wrapper)/launch/zed_camera.launch.py">
+    <arg name="camera_model" value="zed2i"/>
+  </include>
   <node pkg="rviz2" exec="rviz2" args="-d $(var rviz_config)" />
 </launch>
