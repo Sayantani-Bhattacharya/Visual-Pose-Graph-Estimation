@@ -45,7 +45,6 @@ ament_target_dependencies(camera_manager
   geometry_msgs
   visualization_msgs
 )
-
 target_link_libraries(camera_manager
   ${OpenCV_LIBRARIES}
   g2o_core
@@ -54,9 +53,23 @@ target_link_libraries(camera_manager
   g2o_solver_csparse
   g2o_solver_dense
 )
-
 install(TARGETS
   camera_manager
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Path Creator Node
+add_executable(path_creator src/path_creator.cpp)
+ament_target_dependencies(path_creator
+  rclcpp
+  sensor_msgs
+  nav_msgs
+  tf2_ros
+  geometry_msgs
+  visualization_msgs
+)
+install(TARGETS
+  path_creator
   DESTINATION lib/${PROJECT_NAME}
 )
 
