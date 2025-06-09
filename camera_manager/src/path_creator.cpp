@@ -33,3 +33,10 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 void PathCreator::timerCallback() {
 
 }
+
+int main(int argc, char* argv[]) {
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<PathCreator>());
+  rclcpp::shutdown();
+  return 0;
+}
