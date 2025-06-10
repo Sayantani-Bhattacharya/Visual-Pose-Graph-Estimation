@@ -31,7 +31,7 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 }
 
 void PathCreator::timerCallback() {
-
+  // Listen for the camera TF 
 }
 
 int main(int argc, char* argv[]) {

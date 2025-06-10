@@ -379,7 +379,11 @@ Edge CameraManager::MonocularCameraPoseEstimation(const Feature& newFeature) {
   // Recover pose
   cv::Mat R, t;
   int inliers = cv::recoverPose(E, pts1, pts2, K, R, t, mask);
-
+  if (inliers < 5) {
+    RCLCPP_WARN(this->get_logger(), "[MonocularCameraPoseEstimation] Not enough inliers for frame ID %d", newFeature.frameID);
+    edge.relativePose = cv::Mat::eye(4, 4, CV_64F); // Not enough inliers
+    return edge;
+  }
   // Build 4x4 transformation matrix
   edge.relativePose = cv::Mat::eye(4, 4, CV_64F);
   R.copyTo(edge.relativePose(cv::Rect(0, 0, 3, 3)));

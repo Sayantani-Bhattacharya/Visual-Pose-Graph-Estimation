@@ -26,6 +26,7 @@ private:
   tf2_ros::TransformListener tfListener; // Listener for transforms
 
   float timerFreq; // Timer frequency [Hz]
+  bool recordingPath; // Flag to indicate if robotPath is being recorded or not
   std::mutex cameraPathMutex; // Mutex for thread safety
   nav_msgs::msg::Path cameraPath; // Path to store camera pose estimates
   nav_msgs::msg::Path robotPath; // Path to store robot pose estimates
