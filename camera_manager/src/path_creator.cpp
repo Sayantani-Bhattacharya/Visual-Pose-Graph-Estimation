@@ -139,11 +139,23 @@ visualization_msgs::msg::Marker PathCreator::createScoreMarker(float score, cons
   marker.id = 0;
   marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
   marker.action = visualization_msgs::msg::Marker::ADD;
-  marker.pose.position.x = 0.0;
-  marker.pose.position.y = 0.0;
-  marker.pose.position.z = 1.0; // Position above the ground
+  try {
+    const auto& cameraPosition = this->tfBuffer.lookupTransform("odom", "zed_camera_link", rclcpp::Time(0), std::chrono::seconds(1));
+    marker.pose.position.x = cameraPosition.transform.translation.x; // Use the transform to set the position
+    marker.pose.position.y = cameraPosition.transform.translation.y;
+    marker.pose.position.z = cameraPosition.transform.translation.z + 0.25;
+    marker.pose.orientation.x = cameraPosition.transform.rotation.x;
+    marker.pose.orientation.y = cameraPosition.transform.rotation.y;
+    marker.pose.orientation.z = cameraPosition.transform.rotation.z;
+    marker.pose.orientation.w = cameraPosition.transform.rotation.w;
+  }
+  catch (const tf2::TransformException& ex) {
+    marker.pose.position.x = 0.0;
+    marker.pose.position.y = 0.0;
+    marker.pose.position.z = 1.0; // Position above the ground
+  }
   marker.pose.orientation.w = 1.0; // No rotation
-  const float textSize = 0.5f; // Size of the text
+  const float textSize = 0.1f; // Size of the text
   marker.scale.x = textSize;
   marker.scale.y = textSize;
   marker.scale.z = textSize;
