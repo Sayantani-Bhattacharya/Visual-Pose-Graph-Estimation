@@ -180,10 +180,11 @@ def main():
     ROS_DISTRO = os.environ.get('ROS_DISTRO')
     qos = QoSProfile(depth=10)
     node = rclpy.create_node('teleop_keyboard')
-    if ROS_DISTRO == 'humble':
-        pub = node.create_publisher(Twist, 'cmd_vel', qos)
-    else:
-        pub = node.create_publisher(TwistStamped, 'cmd_vel', qos)
+    # if ROS_DISTRO == 'humble':
+    #     pub = node.create_publisher(Twist, 'cmd_vel', qos)
+    # else:
+    #     pub = node.create_publisher(TwistStamped, 'cmd_vel', qos)
+    pub = node.create_publisher(WheelCommands, 'wheel_cmds', qos)
 
     status = 0
     target_linear_velocity = 0.0
