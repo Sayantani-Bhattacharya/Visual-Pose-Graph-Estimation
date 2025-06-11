@@ -159,9 +159,9 @@ visualization_msgs::msg::Marker PathCreator::createScoreMarker(float score, cons
   marker.scale.x = textSize;
   marker.scale.y = textSize;
   marker.scale.z = textSize;
-  marker.color.r = 1.0; // White color
+  marker.color.r = 0.0;
   marker.color.g = 1.0;
-  marker.color.b = 1.0;
+  marker.color.b = 0.5;
   marker.color.a = 1.0; // Fully opaque
   marker.text = "Path Score: " + std::to_string(score * 100) + "%"; // Display score as percentage
   return marker;
