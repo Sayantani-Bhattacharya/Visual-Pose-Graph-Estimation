@@ -52,8 +52,10 @@ private:
   nav_msgs::msg::Path racePath; // Path to store camera pose estimates during racing
   nav_msgs::msg::Path robotPath; // Path to store robot pose estimates
 
+  // Trigger calls.
+  bool startRecord = false; // Flag to indicate if recording has started
+  bool startRace = false; // Flag to indicate if racing has started
   
-
   void timerCallback();
 
 };
