@@ -95,7 +95,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
     response->message = "[Server Call] The Race Ended.";
   }
   );
-
   this->timer = this->create_wall_timer(
     std::chrono::milliseconds(static_cast<int>(1000 / this->timerFreq)),
     std::bind(&PathCreator::timerCallback, this)
@@ -103,7 +102,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 }
 
 void PathCreator::timerCallback() { 
-
   // Publish robot path and race path all the time if not empty.
   this->robotPath.header.stamp = this->now(); // Update the timestamp
   this->robotPathPub->publish(this->robotPath); // Publish the robot path
