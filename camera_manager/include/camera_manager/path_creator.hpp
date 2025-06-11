@@ -33,6 +33,8 @@ public:
     END_RACING
   };
 
+  nav_msgs::msg::Path extractPath(const rclcpp::Time& start, const rclcpp::Time& end);
+
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr scorePub; // Publisher for the score text
@@ -56,6 +58,15 @@ private:
   nav_msgs::msg::Path racePath; // Path to store camera pose estimates during racing
   nav_msgs::msg::Path robotPath; // Path to store robot pose estimates
 
+  rclcpp::Time mRecordStartTimestamp; // Timestamp when recording started
+  rclcpp::Time mRecordEndTimestamp; // Timestamp when recording started
+  rclcpp::Time mStartRaceTimestamp; // Timestamp when racing started
+  rclcpp::Time mEndRaceTimestamp; // Timestamp when racing ended
+
+
+  // Trigger calls.
+  bool startRecord = false; // Flag to indicate if recording has started
+  bool startRace = false; // Flag to indicate if racing has started
   visualization_msgs::msg::Marker createScoreMarker(float score, const std::string& frame_id);
 
   void timerCallback();
