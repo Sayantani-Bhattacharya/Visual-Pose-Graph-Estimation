@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright (c) 2011, Willow Garage, Inc.
 # All rights reserved.
@@ -52,7 +52,7 @@ else:
     import termios
     import tty
 
-BURGER_MAX_LIN_VEL = 0.22
+BURGER_MAX_LIN_VEL = 2.22
 BURGER_MAX_ANG_VEL = 2.84
 
 WAFFLE_MAX_LIN_VEL = 0.26
@@ -61,9 +61,9 @@ WAFFLE_MAX_ANG_VEL = 1.82
 LIN_VEL_STEP_SIZE = 0.01
 ANG_VEL_STEP_SIZE = 0.1
 
-TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
-
-msg = """
+# TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
+TURTLEBOT3_MODEL = "burger"
+msg = f"""
 Control Your TurtleBot3!
 ---------------------------
 Moving around:
@@ -71,7 +71,7 @@ Moving around:
    a    s    d
         x
 
-w/x : increase/decrease linear velocity (Burger : ~ 0.22, Waffle and Waffle Pi : ~ 0.26)
+w/x : increase/decrease linear velocity (Burger : ~ {BURGER_MAX_LIN_VEL:.2f}, Waffle and Waffle Pi : ~ 0.26)
 a/d : increase/decrease angular velocity (Burger : ~ 2.84, Waffle and Waffle Pi : ~ 1.82)
 
 space key, s : force stop
@@ -99,9 +99,9 @@ def Twist2WheelCommands(twist: Twist | TwistStamped) -> WheelCommands:
         twist = twist.twist
     MCU = 0.024  # [rad/sec] per mcu
     # Convert linear and angular velocities to wheel velocities
-    wheel_seperation = 160  # [mm] between wheels
-    left = twist.linear.x - (twist.angular.z * wheel_seperation / 2.0)
-    right = twist.linear.x + (twist.angular.z * wheel_seperation / 2.0)
+    wheel_seperation = 160 / 2.0  # [mm] between wheels
+    left = twist.linear.x - (twist.angular.z * wheel_seperation)
+    right = twist.linear.x + (twist.angular.z * wheel_seperation)
     # Convert to mcu
     left_mcu = int(left / MCU)
     right_mcu = int(right / MCU)
@@ -184,7 +184,7 @@ def main():
     #     pub = node.create_publisher(Twist, 'cmd_vel', qos)
     # else:
     #     pub = node.create_publisher(TwistStamped, 'cmd_vel', qos)
-    pub = node.create_publisher(WheelCommands, 'wheel_cmds', qos)
+    pub = node.create_publisher(WheelCommands, 'wheel_cmd', qos)
 
     status = 0
     target_linear_velocity = 0.0
