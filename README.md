@@ -28,7 +28,8 @@ Final project for MSAI495: Computer Vision
 
 ## Dependency install:
 - sudo apt-get install ros-jazzy-libg2o
-
+- https://www.stereolabs.com/docs/installation/linux : Install Zed SDK
+- https://github.com/stereolabs/zed-ros2-wrapper?tab=readme-ov-file : Install ros2 zed wrapper
 
 ## Resource
 - https://nu-msr.github.io/ros_notes/ros2/computer_vision.html
