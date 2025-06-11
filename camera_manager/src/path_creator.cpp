@@ -110,8 +110,7 @@ nav_msgs::msg::Path PathCreator::extractPath(const rclcpp::Time& start, const rc
 float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual) {
   // Compare how closely the path follows the reference path
   const int N = std::min(reference.poses.size(), actual.poses.size());
-  float totalError = 0.0f;
-  float maxDistance = 0.0f;
+  float squaredError = 0.0f;
   for (int i = 0; i < N; ++i) {
     const auto& refPose = reference.poses[i].pose;
     const auto& actPose = actual.poses[i].pose;
@@ -120,13 +119,11 @@ float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::m
     float dx = refPose.position.x - actPose.position.x;
     float dy = refPose.position.y - actPose.position.y;
     float dz = refPose.position.z - actPose.position.z;
-    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-    maxDistance = std::max(maxDistance, distance); // Track the maximum distance for normalization
-    totalError += distance; // Accumulate the total error
+    squaredError += dx * dx + dy * dy + dz * dz;
   }
-  totalError /= N; // Average error over all poses
-  // Normalize the score between 0 and 1 since score should be a percentage
-  float score = std::max(0.0f, 1.0f - (totalError / maxDistance)); // Return a score between 0 and 1
+  float RMSE = std::sqrt(squaredError / N); // Calculate the root mean square error
+  const float maxDistance = 1.0f;
+  float score = std::max(0.0f, 1.0f - (RMSE / maxDistance)); // Normalize the score between 0 and 1
   this->scorePub->publish(createScoreMarker(score, reference.header.frame_id)); // Publish the score marker
   return score;
 }
