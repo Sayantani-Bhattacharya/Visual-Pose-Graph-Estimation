@@ -52,14 +52,14 @@ else:
     import termios
     import tty
 
-BURGER_MAX_LIN_VEL = 2.22
-BURGER_MAX_ANG_VEL = 2.84
+BURGER_MAX_LIN_VEL = 2.0
+BURGER_MAX_ANG_VEL = 1.0
 
 WAFFLE_MAX_LIN_VEL = 0.26
 WAFFLE_MAX_ANG_VEL = 1.82
 
-LIN_VEL_STEP_SIZE = 0.1
-ANG_VEL_STEP_SIZE = 0.1 / 10.0
+LIN_VEL_STEP_SIZE = BURGER_MAX_LIN_VEL / 2.0
+ANG_VEL_STEP_SIZE = BURGER_MAX_ANG_VEL / 2.0
 
 # TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 TURTLEBOT3_MODEL = "burger"
@@ -99,9 +99,8 @@ def Twist2WheelCommands(twist: Twist | TwistStamped) -> WheelCommands:
         twist = twist.twist
     MCU = 0.024  # [rad/sec] per mcu
     # Convert linear and angular velocities to wheel velocities
-    wheel_seperation = 160 / 2.0  # [mm] between wheels
-    left = twist.linear.x - (twist.angular.z * wheel_seperation)
-    right = twist.linear.x + (twist.angular.z * wheel_seperation)
+    left = twist.linear.x - (twist.angular.z)
+    right = twist.linear.x + (twist.angular.z)
     # Convert to mcu
     left_mcu = int(left / MCU)
     right_mcu = int(right / MCU)
