@@ -54,6 +54,12 @@ private:
   nav_msgs::msg::Path racePath; // Path to store camera pose estimates during racing
   nav_msgs::msg::Path robotPath; // Path to store robot pose estimates
 
+  rclcpp::Time mRecordStartTimestamp; // Timestamp when recording started
+  rclcpp::Time mRecordEndTimestamp; // Timestamp when recording started
+  rclcpp::Time mStartRaceTimestamp; // Timestamp when racing started
+  rclcpp::Time mEndRaceTimestamp; // Timestamp when racing ended
+
+
   // Trigger calls.
   bool startRecord = false; // Flag to indicate if recording has started
   bool startRace = false; // Flag to indicate if racing has started
