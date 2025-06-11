@@ -11,6 +11,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(OpenCV 4.6 REQUIRED)
@@ -23,6 +24,7 @@ find_package(g2o REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(nuturtlebot_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 
 
@@ -33,9 +35,10 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
+
 # Camera Manager Node
-add_executable(camera_manager src/camera_manager.cpp)
-ament_target_dependencies(camera_manager
+add_executable(CAMERA_MANAGER src/camera_manager.cpp)
+ament_target_dependencies(CAMERA_MANAGER
   rclcpp
   sensor_msgs
   OpenCV
@@ -47,7 +50,7 @@ ament_target_dependencies(camera_manager
   geometry_msgs
   visualization_msgs
 )
-target_link_libraries(camera_manager
+target_link_libraries(CAMERA_MANAGER
   ${OpenCV_LIBRARIES}
   g2o_core
   g2o_stuff
@@ -56,7 +59,7 @@ target_link_libraries(camera_manager
   g2o_solver_dense
 )
 install(TARGETS
-  camera_manager
+CAMERA_MANAGER
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -71,6 +74,13 @@ ament_target_dependencies(path_creator
   visualization_msgs
   std_srvs
 )
+
+# Teleop node
+install(PROGRAMS
+  camera_manager/teleop.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(TARGETS
   path_creator
   DESTINATION lib/${PROJECT_NAME}
@@ -102,4 +112,5 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+ament_python_install_package(${PROJECT_NAME})
 ament_package()

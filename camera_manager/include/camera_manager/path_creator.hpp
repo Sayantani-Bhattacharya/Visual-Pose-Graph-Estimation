@@ -1,6 +1,7 @@
 #ifndef PATH_CREATOR_HPP
 #define PATH_CREATOR_HPP
 #include <rclcpp/rclcpp.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
@@ -20,6 +21,8 @@ public:
     return cameraPath; // Return the camera path
   }
 
+  float score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual);
+
   // State Machine
   enum State {
     IDLE,
@@ -34,6 +37,7 @@ public:
 
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr scorePub; // Publisher for the score text
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr robotPathPub; // Publisher for the robot path
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr racePathPub; // Publisher for the camera path
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr cameraPathSub; // Subscription to receive camera path
@@ -63,6 +67,7 @@ private:
   // Trigger calls.
   bool startRecord = false; // Flag to indicate if recording has started
   bool startRace = false; // Flag to indicate if racing has started
+  visualization_msgs::msg::Marker createScoreMarker(float score, const std::string& frame_id);
 
   void timerCallback();
 
