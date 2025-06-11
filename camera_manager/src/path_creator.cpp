@@ -92,10 +92,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual) {
   // Compare how closely the path follows the reference path
   const int N = std::min(reference.poses.size(), actual.poses.size());
-  if (N == 0) {
-    RCLCPP_WARN(this->get_logger(), "No poses in either path to score.");
-    return 0.0f; // No poses to compare
-  }
   float totalError = 0.0f;
   float maxDistance = 0.0f;
   for (int i = 0; i < N; ++i) {
@@ -129,9 +125,10 @@ visualization_msgs::msg::Marker PathCreator::createScoreMarker(float score, cons
   marker.pose.position.y = 0.0;
   marker.pose.position.z = 1.0; // Position above the ground
   marker.pose.orientation.w = 1.0; // No rotation
-  marker.scale.x = 1.0; // Text size
-  marker.scale.y = 1.0; // Text size
-  marker.scale.z = 1.0; // Text size
+  const float textSize = 0.5f; // Size of the text
+  marker.scale.x = textSize;
+  marker.scale.y = textSize;
+  marker.scale.z = textSize;
   marker.color.r = 1.0; // White color
   marker.color.g = 1.0;
   marker.color.b = 1.0;
