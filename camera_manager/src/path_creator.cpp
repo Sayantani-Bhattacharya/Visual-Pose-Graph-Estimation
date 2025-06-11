@@ -23,11 +23,9 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
         std::lock_guard<std::mutex> lock(this->cameraPathMutex); // Lock the mutex for thread safety
         if (mCurrentState == State::RECORDING) {
           this->robotPath = *msg; // Store the received camera path
-        } 
-        else if(mCurrentState == State::RACING) {
+        } else if (mCurrentState == State::RACING) {
           this->racePath = *msg; // Store the received camera path
-        }
-        else {
+        } else {
           this->cameraPath = *msg; // Store the received camera path as robot path
         }
       }
@@ -37,49 +35,49 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   // Setup Service calls
   this->startRecordingService = this->create_service<std_srvs::srv::Trigger>(
     "start_recording", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                              std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RECORDING; // Set the flag to start recording
-      response->success = true;
-      response->message = "[Server Call] Started recording path.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RECORDING; // Set the flag to start recording
+    response->success = true;
+    response->message = "[Server Call] Started recording path.";
+  }
   );
 
   this->stopRecordingService = this->create_service<std_srvs::srv::Trigger>(
     "stop_recording", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                             std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::END_RECORDING; // Set the flag to stop recording
-      response->success = true;
-      response->message = "[Server Call] Stopped recording path.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::END_RECORDING; // Set the flag to stop recording
+    response->success = true;
+    response->message = "[Server Call] Stopped recording path.";
+  }
   );
 
   this->resetPathService = this->create_service<std_srvs::srv::Trigger>(
     "reset_path", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RESETTING; // Set the flag to reset the path
-      this->cameraPath.poses.clear(); // Clear the camera path
-      this->robotPath.poses.clear(); // Clear the robot path
-      response->success = true;
-      response->message = "[Server Call] Path reset.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RESETTING; // Set the flag to reset the path
+    this->cameraPath.poses.clear(); // Clear the camera path
+    this->robotPath.poses.clear(); // Clear the robot path
+    response->success = true;
+    response->message = "[Server Call] Path reset.";
+  }
   );
 
   this->startRaceService = this->create_service<std_srvs::srv::Trigger>(
     "start_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RACING; // Start race
-      response->success = true;
-      response->message = "[Server Call] The Race Begins.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RACING; // Start race
+    response->success = true;
+    response->message = "[Server Call] The Race Begins.";
+  }
   );
 
-  this->startRaceService = this->create_service<std_srvs::srv::Trigger>(
+  this->endRaceService = this->create_service<std_srvs::srv::Trigger>(
     "end_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::END_RACING; // End race
-      response->success = true;
-      response->message = "[Server Call] The Race Ended.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::END_RACING; // End race
+    response->success = true;
+    response->message = "[Server Call] The Race Ended.";
+  }
   );
 
   this->timer = this->create_wall_timer(
