@@ -1,5 +1,6 @@
 <launch>
 <arg name="rviz_config" default="$(find-pkg-share camera_manager)/config/PoseTraj.rviz" description="The RVIZ config file (.rviz)"/>
+<arg name="robot_urdf_xacro" default="$(find-pkg-share turtlebot3_description)/urdf/turtlebot3_burger.urdf" description="The URDF file for the robot" />
   <node pkg="camera_manager" exec="path_creator" name="path_creator" output="screen">
     <param from="$(find-pkg-share camera_manager)/config/camera_manager_config.yaml"/>
   </node>
@@ -7,4 +8,9 @@
     <arg name="camera_model" value="zed2i"/>
   </include>
   <node pkg="rviz2" exec="rviz2" args="-d $(var rviz_config)" />
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="camera_base_link_transform" output="screen" args="0 0 -0.12 0 0 0 zed_camera_link base_footprint"/>
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" name="robot_state_publisher" output="screen">
+    <param name="robot_description" value="$(command 'xacro $(var robot_urdf_xacro)')"/>
+  </node>
+  <node pkg="joint_state_publisher" exec="joint_state_publisher" name="joint_state_publisher" output="screen"/>
 </launch>
