@@ -28,19 +28,19 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 
   // Setup Service calls
   this->startRecordingService = this->create_service<std_srvs::srv::Trigger>(
-    "start_recording", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                              std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RECORDING; // Set the flag to start recording
-      startRecord = true;
-      // Extract the timing 
-      mRecordStartTimestamp = this->now(); // Store the current time as the start time
-      response->success = true;
-      response->message = "[Server Call] Started recording path.";
-    }
+    "start_recording", [this]([[maybe_unused]] const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RECORDING; // Set the flag to start recording
+    startRecord = true;
+    // Extract the timing 
+    mRecordStartTimestamp = this->now(); // Store the current time as the start time
+    response->success = true;
+    response->message = "[Server Call] Started recording path.";
+  }
   );
 
   this->stopRecordingService = this->create_service<std_srvs::srv::Trigger>(
-    "stop_recording", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    "stop_recording", [this]([[maybe_unused]] const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     mCurrentState = State::END_RECORDING; // Set the flag to stop recording
     mRecordEndTimestamp = this->now(); // Store the current time as the start time
@@ -50,7 +50,7 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 
   this->resetPathService = this->create_service<std_srvs::srv::Trigger>(
-    "reset_path", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    "reset_path", [this]([[maybe_unused]] const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     mCurrentState = State::RESETTING; // Set the flag to reset the path
     this->cameraPath.poses.clear(); // Clear the camera path
@@ -62,7 +62,7 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 
   this->startRaceService = this->create_service<std_srvs::srv::Trigger>(
-    "start_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    "start_race", [this]([[maybe_unused]] const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     mCurrentState = State::RACING; // Start race
     startRace = true; // Set the flag to start racing
@@ -73,7 +73,7 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 
   this->endRaceService = this->create_service<std_srvs::srv::Trigger>(
-    "end_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    "end_race", [this]([[maybe_unused]] const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     mCurrentState = State::END_RACING; // End race
     mEndRaceTimestamp = this->now(); // Store the current time as the end time
@@ -99,7 +99,7 @@ nav_msgs::msg::Path PathCreator::extractPath(const rclcpp::Time& start, const rc
       break; // Stop if we have passed the end time
     }
   }
-  path.header = cameraPath.header;
+  path.header.frame_id = cameraPath.header.frame_id; // Set the frame ID from the camera path
   path.header.stamp = this->now(); // Update the header timestamp
   return path;
 }
@@ -107,24 +107,15 @@ nav_msgs::msg::Path PathCreator::extractPath(const rclcpp::Time& start, const rc
 void PathCreator::timerCallback() {
   // Publish robot path and race path all the time if not empty.
 
-  if (mCurrentState == State::RECORDING)
-  {
-    this->extractPath(mRecordStartTimestamp, this->now()); // Extract the path from start to now
-  }
-  else if (mCurrentState == State::END_RECORDING)
-  {
-    this->extractPath(mRecordStartTimestamp, mRecordEndTimestamp); // Extract the path from start to now
-  }
-  else if (mCurrentState == State::RACING)
-  {
+  if (mCurrentState == State::RECORDING) {
+    this->robotPath = this->extractPath(mRecordStartTimestamp, this->now()); // Extract the path from start to now
+  } else if (mCurrentState == State::END_RECORDING) {
+    this->robotPath = this->extractPath(mRecordStartTimestamp, mRecordEndTimestamp); // Extract the path from start to now
+  } else if (mCurrentState == State::RACING) {
     this->racePath = this->extractPath(mStartRaceTimestamp, this->now()); // Extract the path from start to now
-  }
-  else if (mCurrentState == State::END_RACING)
-  {
+  } else if (mCurrentState == State::END_RACING) {
     this->racePath = this->extractPath(mStartRaceTimestamp, mEndRaceTimestamp); // Extract the path from start to now
-  }
-  else if (mCurrentState == State::RESETTING)
-  {
+  } else if (mCurrentState == State::RESETTING) {
     mStartRaceTimestamp = this->now();
     mEndRaceTimestamp = this->now();
     mRecordStartTimestamp = this->now();
@@ -132,8 +123,9 @@ void PathCreator::timerCallback() {
     this->racePath.poses.clear(); // Clear the camera path
     this->robotPath.poses.clear(); // Clear the robot path
   }
-  
 
+  this->robotPath.header.frame_id = "odom"; // Set the frame ID for the robot path
+  this->racePath.header.frame_id = "odom"; // Set the frame ID
   this->robotPath.header.stamp = this->now(); // Update the timestamp
   this->robotPathPub->publish(this->robotPath); // Publish the robot path
   this->racePath.header.stamp = this->now(); // Update the timestamp
