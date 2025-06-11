@@ -21,12 +21,7 @@ Final project for MSAI495: Computer Vision
 6.     # Test for wheel command to Move forward: 
         ros2 topic pub /wheel_cmd nuturtlebot_msgs/msg/WheelCommands "{left_velocity: 100, right_velocity: 100}" 
 
-
-## TODOs
-- Setup turtlebot in ROS2 with camera (Intel Realsense, Zedd 2i)
-- Research pose-graph estimation using visual sensor
-
-## Dependency install:
+## Dependency Installation:
 - sudo apt-get install ros-jazzy-libg2o
 - https://www.stereolabs.com/docs/installation/linux : Install Zed SDK
 - https://github.com/stereolabs/zed-ros2-wrapper?tab=readme-ov-file : Install ros2 zed wrapper
@@ -44,4 +39,5 @@ Final project for MSAI495: Computer Vision
 - TurtleBot3
   [Static IP: 192.168.2.1 | Name: Teelte]
 - RealSense D435I
+- Zed 2i
 - LiPo Battery
