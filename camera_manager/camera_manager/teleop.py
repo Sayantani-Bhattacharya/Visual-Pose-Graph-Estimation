@@ -58,8 +58,8 @@ BURGER_MAX_ANG_VEL = 2.84
 WAFFLE_MAX_LIN_VEL = 0.26
 WAFFLE_MAX_ANG_VEL = 1.82
 
-LIN_VEL_STEP_SIZE = 0.01
-ANG_VEL_STEP_SIZE = 0.1
+LIN_VEL_STEP_SIZE = 0.1
+ANG_VEL_STEP_SIZE = 0.1 / 10.0
 
 # TURTLEBOT3_MODEL = os.environ['TURTLEBOT3_MODEL']
 TURTLEBOT3_MODEL = "burger"
@@ -71,8 +71,8 @@ Moving around:
    a    s    d
         x
 
-w/x : increase/decrease linear velocity (Burger : ~ {BURGER_MAX_LIN_VEL:.2f}, Waffle and Waffle Pi : ~ 0.26)
-a/d : increase/decrease angular velocity (Burger : ~ 2.84, Waffle and Waffle Pi : ~ 1.82)
+w/x : increase/decrease linear velocity (Max: {BURGER_MAX_LIN_VEL:.2f} Step: {LIN_VEL_STEP_SIZE:.2f})
+a/d : increase/decrease angular velocity (Max : ~ {BURGER_MAX_ANG_VEL:.2f} Step: {ANG_VEL_STEP_SIZE:.2f})
 
 space key, s : force stop
 
