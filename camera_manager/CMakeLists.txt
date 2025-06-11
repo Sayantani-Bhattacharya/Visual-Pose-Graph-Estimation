@@ -23,6 +23,8 @@ find_package(g2o REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+
 
 include_directories(
   include/camera_manager
@@ -67,6 +69,7 @@ ament_target_dependencies(path_creator
   tf2_ros
   geometry_msgs
   visualization_msgs
+  std_srvs
 )
 install(TARGETS
   path_creator
