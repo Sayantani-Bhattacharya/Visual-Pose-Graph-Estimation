@@ -18,6 +18,8 @@ public:
     return cameraPath; // Return the camera path
   }
 
+  float score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual);
+
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr robotPathPub; // Publisher for the robot path

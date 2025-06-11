@@ -34,6 +34,10 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 }
 
+float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual) {
+  // Compare how closely the path follows the reference path
+}
+
 void PathCreator::timerCallback() {
   // Listen for the camera TF while "recording"
   // And that builds the robotPath (different than cameraPath)
