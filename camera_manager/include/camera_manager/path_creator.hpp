@@ -30,6 +30,8 @@ public:
     END_RACING
   };
 
+  nav_msgs::msg::Path extractPath(const rclcpp::Time& start, const rclcpp::Time& end);
+
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr robotPathPub; // Publisher for the robot path
@@ -55,7 +57,7 @@ private:
   // Trigger calls.
   bool startRecord = false; // Flag to indicate if recording has started
   bool startRace = false; // Flag to indicate if racing has started
-  
+
   void timerCallback();
 
 };

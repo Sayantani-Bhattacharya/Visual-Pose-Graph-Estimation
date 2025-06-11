@@ -22,17 +22,14 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
       {
         std::lock_guard<std::mutex> lock(this->cameraPathMutex); // Lock the mutex for thread safety
         if (mCurrentState == State::RECORDING) {
-          if (startRecord) 
-          {
+          if (startRecord) {
             RCLCPP_INFO(this->get_logger(), "Racing Started, storing camera path.");
             startRecord = false; // Ensure this message is logged only once
             this->robotPath.poses.clear();
           }
           this->robotPath = *msg; // Store the received camera path
-        } 
-        else if(mCurrentState == State::RACING) {
-          if (startRace) 
-          {
+        } else if (mCurrentState == State::RACING) {
+          if (startRace) {
             RCLCPP_INFO(this->get_logger(), "Racing Started, storing camera path.");
             startRace = false; // Ensure this message is logged only once
             this->racePath.poses.clear();
@@ -48,12 +45,12 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   // Setup Service calls
   this->startRecordingService = this->create_service<std_srvs::srv::Trigger>(
     "start_recording", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                              std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RECORDING; // Set the flag to start recording
-      startRecord = true;
-      response->success = true;
-      response->message = "[Server Call] Started recording path.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RECORDING; // Set the flag to start recording
+    startRecord = true;
+    response->success = true;
+    response->message = "[Server Call] Started recording path.";
+  }
   );
 
   this->stopRecordingService = this->create_service<std_srvs::srv::Trigger>(
@@ -67,24 +64,24 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 
   this->resetPathService = this->create_service<std_srvs::srv::Trigger>(
     "reset_path", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RESETTING; // Set the flag to reset the path
-      this->cameraPath.poses.clear(); // Clear the camera path
-      this->robotPath.poses.clear(); // Clear the robot path
-      this->racePath.poses.clear();
-      response->success = true;
-      response->message = "[Server Call] Path reset.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RESETTING; // Set the flag to reset the path
+    this->cameraPath.poses.clear(); // Clear the camera path
+    this->robotPath.poses.clear(); // Clear the robot path
+    this->racePath.poses.clear();
+    response->success = true;
+    response->message = "[Server Call] Path reset.";
+  }
   );
 
   this->startRaceService = this->create_service<std_srvs::srv::Trigger>(
     "start_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                         std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-      mCurrentState = State::RACING; // Start race
-      startRace = true; // Set the flag to start racing
-      response->success = true;
-      response->message = "[Server Call] The Race Begins.";
-    }
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    mCurrentState = State::RACING; // Start race
+    startRace = true; // Set the flag to start racing
+    response->success = true;
+    response->message = "[Server Call] The Race Begins.";
+  }
   );
 
   this->endRaceService = this->create_service<std_srvs::srv::Trigger>(
@@ -101,7 +98,24 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 }
 
-void PathCreator::timerCallback() { 
+nav_msgs::msg::Path PathCreator::extractPath(const rclcpp::Time& start, const rclcpp::Time& end) {
+  nav_msgs::msg::Path path;
+  std::lock_guard<std::mutex> lock(cameraPathMutex);
+  for (const auto& pose_stamped : cameraPath.poses) {
+    const auto& stamp = pose_stamped.header.stamp;
+    rclcpp::Time t(stamp.sec, stamp.nanosec, RCL_ROS_TIME);
+    if (t >= start && t <= end) {
+      path.poses.push_back(pose_stamped);
+    } else if (t > end) {
+      break; // Stop if we have passed the end time
+    }
+  }
+  path.header = cameraPath.header;
+  path.header.stamp = this->now(); // Update the header timestamp
+  return path;
+}
+
+void PathCreator::timerCallback() {
   // Publish robot path and race path all the time if not empty.
   this->robotPath.header.stamp = this->now(); // Update the timestamp
   this->robotPathPub->publish(this->robotPath); // Publish the robot path
