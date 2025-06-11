@@ -83,19 +83,17 @@ e = """
 Communications Failed
 """
 
-# WheelCommands MSG
-# Left and right wheel velocity, in "motor command units" (mcu)
-# For the turtlebot, each motor can be command with an integer velocity of between
-# -265 mcu and 265 mcu, and 1 mcu = 0.024 rad/sec
-# int32 left_velocity
-# int32 right_velocity
-# The wheel_cmd messages are integer values between -265 and 265
-# and are proportional to the maximum rotational velocity of the motor(see Specifications and A.8).
-
 
 def Twist2WheelCommands(twist: Twist | TwistStamped) -> WheelCommands:
     """
     Convert a Twist or TwistStamped message to WheelCommands.
+    Left and right wheel velocity, in "motor command units" (mcu)
+    For the turtlebot, each motor can be command with an integer velocity of between
+    -265 mcu and 265 mcu, and 1 mcu = 0.024 rad/sec
+    int32 left_velocity
+    int32 right_velocity
+    The wheel_cmd messages are integer values between -265 and 265
+    and are proportional to the maximum rotational velocity of the motor(see Specifications and A.8).
     """
     if isinstance(twist, TwistStamped):
         twist = twist.twist
