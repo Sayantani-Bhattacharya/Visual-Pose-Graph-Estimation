@@ -22,6 +22,9 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
         if (mCurrentState == State::RECORDING) {
           this->cameraPath = *msg; // Store the received camera path
         } 
+        else if(mCurrentState == State::RACING) {
+          this->robotPath = *msg; // Store the received camera path
+        }
         else {
           this->robotPath = *msg; // Store the received camera path as robot path
         }
@@ -47,7 +50,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
       response->message = "[Server Call] Stopped recording path.";
     }
   );
-
 
   this->resetPathService = this->create_service<std_srvs::srv::Trigger>(
     "reset_path", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
@@ -77,7 +79,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
       response->message = "[Server Call] The Race Ended.";
     }
   );
-
 
   this->timer = this->create_wall_timer(
     std::chrono::milliseconds(static_cast<int>(1000 / this->timerFreq)),
