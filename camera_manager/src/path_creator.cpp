@@ -88,7 +88,6 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   );
 
   this->endRaceService = this->create_service<std_srvs::srv::Trigger>(
-  this->endRaceService = this->create_service<std_srvs::srv::Trigger>(
     "end_race", [this](const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     mCurrentState = State::END_RACING; // End race
