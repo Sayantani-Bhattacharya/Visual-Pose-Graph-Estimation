@@ -148,7 +148,9 @@ void PathCreator::timerCallback() {
     this->racePath.header.stamp = this->now(); // Update the timestamp
     this->racePathPub->publish(this->racePath); // Publish the robot path
   }
-  this->score(this->robotPath, this->racePath); // Calculate and publish the score
+  if (this->mCurrentState == State::RACING) {
+    this->score(this->robotPath, this->racePath);
+  }
 }
 
 int main(int argc, char* argv[]) {
