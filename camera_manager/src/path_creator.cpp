@@ -9,7 +9,7 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   this->timerFreq = this->get_parameter("timer_frequency").as_double();
 
   // Setup score publisher
-  this->scorePub = this->create_publisher<std_msgs::msg::Float32>("/path_creator/path_score", 10);
+  this->scorePub = this->create_publisher<visualization_msgs::msg::Marker>("/path_creator/path_score", 10);
 
   // Setup Path publisher for robot trajectory
   this->robotPathPub = this->create_publisher<nav_msgs::msg::Path>("robot_trajectory", 10);
@@ -60,12 +60,36 @@ float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::m
   }
   totalError /= N; // Average error over all poses
   // Normalize the score between 0 and 1 since score should be a percentage
-  return std::max(0.0f, 1.0f - (totalError / maxDistance)); // Return a score between 0 and 1
+  float score = std::max(0.0f, 1.0f - (totalError / maxDistance)); // Return a score between 0 and 1
+  this->scorePub->publish(createScoreMarker(score, reference.header.frame_id)); // Publish the score marker
+  return score;
+}
+
+visualization_msgs::msg::Marker PathCreator::createScoreMarker(float score, const std::string& frame_id) {
+  visualization_msgs::msg::Marker marker;
+  marker.header.frame_id = frame_id;
+  marker.header.stamp = this->now();
+  marker.ns = "path_score";
+  marker.id = 0;
+  marker.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;
+  marker.action = visualization_msgs::msg::Marker::ADD;
+  marker.pose.position.x = 0.0;
+  marker.pose.position.y = 0.0;
+  marker.pose.position.z = 1.0; // Position above the ground
+  marker.pose.orientation.w = 1.0; // No rotation
+  marker.scale.x = 1.0; // Text size
+  marker.scale.y = 1.0; // Text size
+  marker.scale.z = 1.0; // Text size
+  marker.color.r = 1.0; // White color
+  marker.color.g = 1.0;
+  marker.color.b = 1.0;
+  marker.color.a = 1.0; // Fully opaque
+  marker.text = "Path Score: " + std::to_string(score * 100) + "%"; // Display score as percentage
+  return marker;
 }
 
 void PathCreator::timerCallback() {
-  // Listen for the camera TF while "recording"
-  // And that builds the robotPath (different than cameraPath)
+  this->score(this->cameraPath, this->robotPath); // Calculate and publish the score
 }
 
 int main(int argc, char* argv[]) {
