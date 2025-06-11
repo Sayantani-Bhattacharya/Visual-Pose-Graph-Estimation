@@ -33,6 +33,7 @@ public:
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr robotPathPub; // Publisher for the robot path
+  rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr racePathPub; // Publisher for the camera path
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr cameraPathSub; // Subscription to receive camera path
   tf2_ros::Buffer tfBuffer; // Buffer for storing transforms
   tf2_ros::TransformListener tfListener; // Listener for transforms
@@ -48,6 +49,7 @@ private:
   PathCreator::State mCurrentState = IDLE; // Current state of the path creator
   std::mutex cameraPathMutex; // Mutex for thread safety
   nav_msgs::msg::Path cameraPath; // Path to store camera pose estimates
+  nav_msgs::msg::Path racePath; // Path to store camera pose estimates during racing
   nav_msgs::msg::Path robotPath; // Path to store robot pose estimates
 
   

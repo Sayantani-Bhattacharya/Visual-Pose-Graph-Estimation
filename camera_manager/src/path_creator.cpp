@@ -10,6 +10,8 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 
   // Setup Path publisher for robot trajectory
   this->robotPathPub = this->create_publisher<nav_msgs::msg::Path>("robot_trajectory", 10);
+  this->racePathPub = this->create_publisher<nav_msgs::msg::Path>("race_trajectory", 10);
+
   this->robotPath.header.frame_id = "odom"; // Set the frame ID for the robot path
   this->robotPath.header.stamp = this->now(); // Initialize the timestamp
   this->robotPath.poses.clear(); // Clear any existing poses
@@ -20,13 +22,13 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
       {
         std::lock_guard<std::mutex> lock(this->cameraPathMutex); // Lock the mutex for thread safety
         if (mCurrentState == State::RECORDING) {
-          this->cameraPath = *msg; // Store the received camera path
+          this->robotPath = *msg; // Store the received camera path
         } 
         else if(mCurrentState == State::RACING) {
-          this->robotPath = *msg; // Store the received camera path
+          this->racePath = *msg; // Store the received camera path
         }
         else {
-          this->robotPath = *msg; // Store the received camera path as robot path
+          this->cameraPath = *msg; // Store the received camera path as robot path
         }
       }
   }
@@ -87,8 +89,16 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 }
 
 void PathCreator::timerCallback() {
-  // Listen for the camera TF while "recording"
-  // And that builds the robotPath (different than cameraPath)
+
+  // Publish robot path and race path all the time if not empty.
+  if (!this->robotPath.poses.empty()) {
+    this->robotPath.header.stamp = this->now(); // Update the timestamp
+    this->robotPathPub->publish(this->robotPath); // Publish the robot path
+  }
+  if (!this->racePath.poses.empty()) {
+    this->racePath.header.stamp = this->now(); // Update the timestamp
+    this->racePathPub->publish(this->racePath); // Publish the robot path
+  }
 }
 
 int main(int argc, char* argv[]) {
