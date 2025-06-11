@@ -19,7 +19,11 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
     [this](const nav_msgs::msg::Path::SharedPtr msg) {
       {
         std::lock_guard<std::mutex> lock(this->cameraPathMutex); // Lock the mutex for thread safety
-        this->cameraPath = *msg; // Store the received camera path
+        if (recordingPath) {
+          this->cameraPath = *msg; // Store the received camera path
+        } else {
+          this->robotPath = *msg; // Store the received camera path as robot path
+        }
       }
   }
   );
@@ -31,7 +35,8 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 }
 
 void PathCreator::timerCallback() {
-  // Listen for the camera TF 
+  // Listen for the camera TF while "recording"
+  // And that builds the robotPath (different than cameraPath)
 }
 
 int main(int argc, char* argv[]) {
