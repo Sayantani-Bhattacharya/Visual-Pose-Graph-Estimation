@@ -1,6 +1,7 @@
 #ifndef PATH_CREATOR_HPP
 #define PATH_CREATOR_HPP
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <nav_msgs/msg/path.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
@@ -22,6 +23,7 @@ public:
 
 private:
   rclcpp::TimerBase::SharedPtr timer; // Timer for managing path updates
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr scorePub; // Publisher for the score
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr robotPathPub; // Publisher for the robot path
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr cameraPathSub; // Subscription to receive camera path
   tf2_ros::Buffer tfBuffer; // Buffer for storing transforms

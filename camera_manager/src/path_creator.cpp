@@ -8,6 +8,9 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
   // Get params from config file.
   this->timerFreq = this->get_parameter("timer_frequency").as_double();
 
+  // Setup score publisher
+  this->scorePub = this->create_publisher<std_msgs::msg::Float32>("/path_creator/path_score", 10);
+
   // Setup Path publisher for robot trajectory
   this->robotPathPub = this->create_publisher<nav_msgs::msg::Path>("robot_trajectory", 10);
   this->robotPath.header.frame_id = "odom"; // Set the frame ID for the robot path
@@ -36,6 +39,28 @@ PathCreator::PathCreator() : Node("path_creator"), tfBuffer(this->get_clock()), 
 
 float PathCreator::score(const nav_msgs::msg::Path& reference, const nav_msgs::msg::Path& actual) {
   // Compare how closely the path follows the reference path
+  const int N = std::min(reference.poses.size(), actual.poses.size());
+  if (N == 0) {
+    RCLCPP_WARN(this->get_logger(), "No poses in either path to score.");
+    return 0.0f; // No poses to compare
+  }
+  float totalError = 0.0f;
+  float maxDistance = 0.0f;
+  for (int i = 0; i < N; ++i) {
+    const auto& refPose = reference.poses[i].pose;
+    const auto& actPose = actual.poses[i].pose;
+
+    // Calculate the Euclidean distance between the reference and actual poses
+    float dx = refPose.position.x - actPose.position.x;
+    float dy = refPose.position.y - actPose.position.y;
+    float dz = refPose.position.z - actPose.position.z;
+    float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    maxDistance = std::max(maxDistance, distance); // Track the maximum distance for normalization
+    totalError += distance; // Accumulate the total error
+  }
+  totalError /= N; // Average error over all poses
+  // Normalize the score between 0 and 1 since score should be a percentage
+  return std::max(0.0f, 1.0f - (totalError / maxDistance)); // Return a score between 0 and 1
 }
 
 void PathCreator::timerCallback() {
